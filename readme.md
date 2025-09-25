@@ -14,7 +14,7 @@ Benucci Artesanato Frontend is a cross-platform mobile application built with Re
 
 The app connects to our [backend API](https://github.com/GlhermePereira/Benucci-Artesanato) to provide real-time product information, inventory management, and seamless user experience.
 
-## 🎯 Problem Statement
+## Problem Statement
 
 Traditional artisan businesses face significant challenges in the digital marketplace:
 
@@ -23,7 +23,7 @@ Traditional artisan businesses face significant challenges in the digital market
 - **Market Intelligence**: Difficulty predicting seasonal demand patterns (holidays, special occasions)
 - **Customer Experience**: Limited browsing and purchasing options outside store hours
 
-## ✨ Solution
+## Solution
 
 Our mobile application addresses these challenges by providing:
 
@@ -33,7 +33,7 @@ Our mobile application addresses these challenges by providing:
 - **⚡ Enhanced UX**: Streamlined shopping experience with modern mobile interface
 - **📊 Analytics Ready**: Foundation for business intelligence and demand forecasting
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Technology | Purpose | Version |
 |------------|---------|---------|
@@ -66,7 +66,7 @@ src/
 └── assets/            # Static assets (images, fonts)
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
