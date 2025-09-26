@@ -48,22 +48,37 @@ Our mobile application addresses these challenges by providing:
 ## 📁 Project Structure
 
 ```
-src/
-├── components/          # Reusable UI components
-│   ├── common/         # Generic components
-│   ├── forms/          # Form-specific components
-│   └── navigation/     # Navigation components
-├── screens/            # Application screens
-│   ├── auth/          # Authentication screens
-│   ├── catalog/       # Product catalog screens
-│   └── profile/       # User profile screens
-├── services/          # API integration layer
-│   ├── api.js         # Axios configuration
-│   └── endpoints/     # API endpoint definitions
-├── utils/             # Utility functions
-├── hooks/             # Custom React hooks
-├── types/             # TypeScript type definitions
-└── assets/            # Static assets (images, fonts)
+├── app/                 # Application screens and routing
+│   ├── (tabs)/         # Tab-based navigation screens
+│   │   ├── _layout.tsx # Tab layout configuration
+│   │   ├── explore.tsx # Explore/catalog screen
+│   │   ├── home.tsx    # Home screen
+│   │   ├── profile.tsx # User profile screen
+│   │   └── settings.tsx# App settings screen
+│   ├── auth/           # Authentication screens
+│   │   ├── _layout.tsx # Auth layout
+│   │   ├── login.tsx   # Login screen
+│   │   └── register.tsx# Registration screen
+│   ├── _layout.tsx     # Root layout
+│   └── index.tsx       # App entry point
+├── assets/             # Static assets (images, fonts, icons)
+├── src/                # Source code
+│   ├── components/     # Reusable UI components
+│   │   ├── forms/      # Form-specific components
+│   │   ├── navigation/ # Navigation components
+│   │   └── ui/         # Generic UI components
+│   ├── constants/      # App constants and configuration
+│   ├── hooks/          # Custom React hooks
+│   │   └── useAuth.tsx # Authentication hook
+│   ├── services/       # API integration layer
+│   │   ├── api.ts      # Axios configuration
+│   │   └── auth.ts     # Authentication services
+│   ├── types/          # TypeScript type definitions
+│   │   ├── auth.ts     # Authentication types
+│   │   └── env.ts      # Environment types
+│   └── utils/          # Utility functions
+├── build/              # Build output directory
+└── node_modules/       # Dependencies
 ```
 
 ## Quick Start
@@ -90,24 +105,42 @@ src/
    yarn install
    ```
 
-3. **Start the development server**
+3. **Configure environment variables**
+   
+   Create a `.env` file in the root directory and add the following variables:
+
+   ```env
+   # API Configuration
+   API_BASE_URL=http://000.000.0.100:8080
+   API_TIMEOUT=20000
+   ENABLE_DEBUG=true
+   ```
+
+   **Environment Variables Explained:**
+
+   | Variable | Description | Default | Required |
+   |----------|-------------|---------|----------|
+   | `API_BASE_URL` | Base URL for the backend API server | - | ✅ Yes |
+   | `API_TIMEOUT` | Request timeout in milliseconds | `20000` | ❌ No |
+   | `ENABLE_DEBUG` | Enable debug mode for development | `false` | ❌ No |
+
+   > **Note**: Replace `000.000.0.100` with your actual backend server IP address or domain.
+
+4. **Start the development server**
    ```bash
    npx expo start
    ```
 
-4. **Run on device/emulator**
+5. **Run on device/emulator**
    - **Physical Device**: Install [Expo Go](https://expo.dev/client) and scan the QR code
    - **iOS Simulator**: Press `i` in the terminal
    - **Android Emulator**: Press `a` in the terminal
 
-### Environment Configuration
+### Development Tips
 
-Create a `.env` file in the root directory:
-
-```env
-API_BASE_URL=https://your-backend-api.com
-EXPO_PUBLIC_API_KEY=your_api_key_here
-```
+- **Local Development**: For local development, use your machine's local IP address instead of `localhost` in `API_BASE_URL`
+- **Production**: Update the `API_BASE_URL` to your production server URL before building
+- **Debug Mode**: Set `ENABLE_DEBUG=false` in production for better performance
 
 ## 🔗 Related Projects
 

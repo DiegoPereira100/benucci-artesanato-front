@@ -2,10 +2,29 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 
-export default function Home() {
+export default function Welcome() {
   const router = useRouter();
-  
+  const { user } = useAuth();
+
+  const handleStart = () => {
+    console.log('=== BOTÃO COMEÇAR CLICADO ===');
+    console.log('User:', user);
+    
+    try {
+      if (user) {
+        console.log('Usuário logado - redirecionando para home');
+        router.replace('/(tabs)/home');
+      } else {
+        console.log('Usuário não logado - redirecionando para login');
+        router.replace('/auth/login');
+      }
+    } catch (error) {
+      console.error('Erro na navegação:', error);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Image
@@ -18,12 +37,21 @@ export default function Home() {
           style={styles.logo}
           source={require('@/assets/images/logo_benucci_arte.png')}
         />
-        <Button 
-          title='Começar' 
-          onPress={() => {
-            router.push('/(tabs)/home');
-          }}
+        {/* Teste com TouchableOpacity nativo primeiro */}
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={handleStart}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.buttonText}>Começar</Text>
+        </TouchableOpacity>
+        
+        {/* Mantenha o Button customizado comentado por enquanto
+        <Button
+          title='Começar'
+          onPress={handleStart}
         />
+        */}
       </View>
       <Image
         style={styles.waveBottom}
@@ -39,7 +67,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     position: 'relative',
   },
-  
   waveTop: {
     position: 'absolute',
     top: 0,
@@ -47,11 +74,10 @@ const styles = StyleSheet.create({
     right: 0,
     width: '100%',
     height: 250,
-    resizeMode: 'stretch', 
+    resizeMode: 'stretch',
     transform: [{ scaleY: -1 }, { scaleX: -1 }],
     zIndex: -1,
   },
-  
   waveBottom: {
     position: 'absolute',
     bottom: 0,
@@ -59,10 +85,9 @@ const styles = StyleSheet.create({
     right: 0,
     width: '100%',
     height: 250,
-    resizeMode: 'stretch', 
+    resizeMode: 'stretch',
     zIndex: -1,
   },
-  
   content: {
     flex: 1,
     justifyContent: 'center',
@@ -70,18 +95,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     zIndex: 1,
   },
-  
   title: {
     fontSize: 22,
     marginBottom: 40,
     textAlign: 'center',
     color: '#333',
   },
-  
   logo: {
     width: 200,
     height: 200,
     marginBottom: 50,
     resizeMode: 'contain',
+  },
+  button: {
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 40,
+    paddingVertical: 15,
+    borderRadius: 25,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });

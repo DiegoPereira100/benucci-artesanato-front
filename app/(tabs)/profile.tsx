@@ -1,11 +1,37 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useAuth } from '@/hooks/useAuth';
 
-export default function ExploreScreen() {
+export default function ProfileScreen() {
+  const { user, logout } = useAuth();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Explorar Produtos</Text>
-      <Text style={styles.subtitle}>Em breve...</Text>
+      <View style={styles.profileHeader}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {user?.name?.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+        <Text style={styles.name}>{user?.name}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+      </View>
+
+      <View style={styles.section}>
+        <TouchableOpacity style={styles.menuItem}>
+          <Text style={styles.menuText}>Meus Pedidos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem}>
+          <Text style={styles.menuText}>Endereços</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuItem}>
+          <Text style={styles.menuText}>Configurações</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+        <Text style={styles.logoutText}>Sair da Conta</Text>
+      </TouchableOpacity>
     </View>
   );
 }
