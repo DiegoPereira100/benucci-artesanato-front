@@ -10,12 +10,15 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 // Esquema de validação
 const loginSchema = z.object({
@@ -51,15 +54,12 @@ export default function LoginScreen() {
       console.log('Dados do login:', data);
       setIsLoading(true);
       
-      // Aguarda o login ser completado
       await login(data);
       console.log('=== LOGIN CONCLUÍDO ===');
       
-      // Aguardar um pouco mais para garantir que o contexto seja atualizado
       await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log('Tentando navegação manual como fallback...');
-      // Fallback: se o _layout não redirecionar, fazemos manualmente
       router.replace('/(tabs)/home');
       
     } catch (error: any) {
@@ -76,105 +76,141 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.container}>
+      <Image
+        style={styles.waveTop}
+        source={require('@/assets/images/wavesbg.png')}
+      />
+      
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Benucci Artesanato</Text>
-          <Text style={styles.subtitle}>Faça login em sua conta</Text>
-        </View>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
 
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.email && styles.inputError]}
-                  placeholder="seu@email.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
-              )}
+          <View style={styles.logoContainer}>
+            <Image
+              style={styles.logo}
+              source={require('@/assets/images/logo_benucci_arte.png')}
             />
-            {errors.email && (
-              <Text style={styles.errorText}>{errors.email.message}</Text>
-            )}
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Senha</Text>
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.password && styles.inputError]}
-                  placeholder="Digite sua senha"
-                  secureTextEntry
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.email && styles.inputError]}
+                    placeholder="seu@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.email && (
+                <Text style={styles.errorText}>{errors.email.message}</Text>
               )}
-            />
-            {errors.password && (
-              <Text style={styles.errorText}>{errors.password.message}</Text>
-            )}
-          </View>
+            </View>
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleSubmit(handleLogin)}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Entrar</Text>
-            )}
-          </TouchableOpacity>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Senha</Text>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.password && styles.inputError]}
+                    placeholder="Digite sua senha"
+                    secureTextEntry
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.password && (
+                <Text style={styles.errorText}>{errors.password.message}</Text>
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={handleSubmit(handleLogin)}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Button title="Entrar" disabled={isLoading} />
+              )}
+            </TouchableOpacity>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Não tem uma conta? </Text>
-            <Link href="/auth/register" asChild>
-              <TouchableOpacity disabled={isLoading}>
-                <Text style={styles.linkText}>Cadastre-se</Text>
-              </TouchableOpacity>
-            </Link>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Não tem uma conta? </Text>
+              <Link href="/auth/register" asChild>
+                <TouchableOpacity disabled={isLoading}>
+                  <Text style={styles.linkText}>Cadastre-se</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <Image
+        style={styles.waveBottom}
+        source={require('@/assets/images/wavesbg.png')}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
+    position: 'relative',
+  },
+  waveTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    height: 250,
+    resizeMode: 'stretch',
+    transform: [{ scaleY: -1 }, { scaleX: -1 }],
+    zIndex: -1,
+  },
+  waveBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    height: 250,
+    resizeMode: 'stretch',
+    zIndex: -1,
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 30,
   },
   title: {
     fontSize: 28,
@@ -185,6 +221,15 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  logo: {
+    width: 150,
+    height: 150,
+    resizeMode: 'contain',
   },
   form: {
     width: '100%',
@@ -216,21 +261,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  button: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -242,7 +272,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   linkText: {
-    color: '#2196F3',
+    color: '#00BCD4',
     fontSize: 14,
     fontWeight: 'bold',
   },

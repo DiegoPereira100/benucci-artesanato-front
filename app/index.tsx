@@ -37,21 +37,15 @@ export default function Welcome() {
           style={styles.logo}
           source={require('@/assets/images/logo_benucci_arte.png')}
         />
-        {/* Teste com TouchableOpacity nativo primeiro */}
         <TouchableOpacity 
-          style={styles.button}
           onPress={handleStart}
           activeOpacity={0.7}
         >
-          <Text style={styles.buttonText}>Começar</Text>
+          <Button
+            title='Começar'
+            onPress={handleStart}
+          />
         </TouchableOpacity>
-        
-        {/* Mantenha o Button customizado comentado por enquanto
-        <Button
-          title='Começar'
-          onPress={handleStart}
-        />
-        */}
       </View>
       <Image
         style={styles.waveBottom}
@@ -106,22 +100,5 @@ const styles = StyleSheet.create({
     height: 200,
     marginBottom: 50,
     resizeMode: 'contain',
-  },
-  button: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 40,
-    paddingVertical: 15,
-    borderRadius: 25,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
+  }
 });

@@ -1,5 +1,3 @@
-// app/auth/register.tsx
-
 import React, { useState } from 'react';
 import {
   View,
@@ -12,12 +10,15 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 // Função para validar CPF
 const validateCPF = (cpf: string) => {
@@ -100,7 +101,7 @@ export default function RegisterScreen() {
       confirmPassword: '',
       phoneNumber: '',
       address: '',
-      type: 'CUSTOMER', // Padrão é cliente
+      type: 'CUSTOMER',
     },
   });
 
@@ -129,303 +130,336 @@ export default function RegisterScreen() {
     return value.slice(0, 15);
   };
 
-  // Apenas a parte que precisa ser alterada no register.tsx
-
-async function handleRegister(data: RegisterFormData) {
-  try {
-    setIsLoading(true);
-    
-    // Remover confirmPassword e limpar CPF antes de enviar
-    const { confirmPassword, ...registerData } = data;
-    registerData.cpf = registerData.cpf.replace(/\D/g, ''); // Remove formatação
-    registerData.phoneNumber = registerData.phoneNumber.replace(/\D/g, ''); // Remove formatação
-    
-    await register(registerData);
-    
-    Alert.alert(
-      'Cadastro Realizado!',
-      'Sua conta foi criada com sucesso.',
-      [
-        { 
-          text: 'OK', 
-          onPress: () => {
-            // Aguardar um pouco para o Alert fechar e depois verificar se deve navegar
-            setTimeout(() => {
-              // Se o cadastro não fez login automático (user ainda é null), redirecionar para login
-              if (!user) {
-                router.replace('/auth/login');
-              }
-              // Se fez login automático, o _layout.tsx já vai redirecionar para home
-            }, 500);
+  async function handleRegister(data: RegisterFormData) {
+    try {
+      setIsLoading(true);
+      
+      const { confirmPassword, ...registerData } = data;
+      registerData.cpf = registerData.cpf.replace(/\D/g, '');
+      registerData.phoneNumber = registerData.phoneNumber.replace(/\D/g, '');
+      
+      await register(registerData);
+      
+      Alert.alert(
+        'Cadastro Realizado!',
+        'Sua conta foi criada com sucesso.',
+        [
+          { 
+            text: 'OK', 
+            onPress: () => {
+              setTimeout(() => {
+                if (!user) {
+                  router.replace('/auth/login');
+                }
+              }, 500);
+            }
           }
-        }
-      ]
-    );
-  } catch (error: any) {
-    Alert.alert(
-      'Erro no Cadastro',
-      error.message || 'Não foi possível criar sua conta. Tente novamente.',
-      [{ text: 'OK' }]
-    );
-  } finally {
-    setIsLoading(false);
+        ]
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Erro no Cadastro',
+        error.message || 'Não foi possível criar sua conta. Tente novamente.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }
-}
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.container}>
+      <Image
+        style={styles.waveTop}
+        source={require('@/assets/images/wavesbg.png')}
+      />
+      
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Criar Conta</Text>
-          <Text style={styles.subtitle}>Preencha os dados abaixo</Text>
-        </View>
-
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nome Completo</Text>
-            <Controller
-              control={control}
-              name="name"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.name && styles.inputError]}
-                  placeholder="João Silva"
-                  autoCapitalize="words"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
-              )}
-            />
-            {errors.name && (
-              <Text style={styles.errorText}>{errors.name.message}</Text>
-            )}
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Criar Conta</Text>
+            <Text style={styles.subtitle}>Preencha os dados abaixo</Text>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>CPF</Text>
-            <Controller
-              control={control}
-              name="cpf"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.cpf && styles.inputError]}
-                  placeholder="123.456.789-00"
-                  keyboardType="numeric"
-                  onBlur={onBlur}
-                  onChangeText={(text) => {
-                    const formatted = formatCPF(text);
-                    onChange(text.replace(/\D/g, '')); // Salva apenas números
-                    setValue('cpf', text.replace(/\D/g, ''));
-                  }}
-                  value={formatCPF(value)}
-                  editable={!isLoading}
-                  maxLength={14}
-                />
-              )}
-            />
-            {errors.cpf && (
-              <Text style={styles.errorText}>{errors.cpf.message}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <Controller
-              control={control}
-              name="email"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.email && styles.inputError]}
-                  placeholder="seu@email.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
-              )}
-            />
-            {errors.email && (
-              <Text style={styles.errorText}>{errors.email.message}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Telefone</Text>
-            <Controller
-              control={control}
-              name="phoneNumber"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.phoneNumber && styles.inputError]}
-                  placeholder="(11) 99999-9999"
-                  keyboardType="phone-pad"
-                  onBlur={onBlur}
-                  onChangeText={(text) => {
-                    const formatted = formatPhone(text);
-                    onChange(text.replace(/\D/g, '')); // Salva apenas números
-                    setValue('phoneNumber', text.replace(/\D/g, ''));
-                  }}
-                  value={formatPhone(value)}
-                  editable={!isLoading}
-                  maxLength={15}
-                />
-              )}
-            />
-            {errors.phoneNumber && (
-              <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Endereço</Text>
-            <Controller
-              control={control}
-              name="address"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.address && styles.inputError]}
-                  placeholder="Rua X, 123 - Cidade"
-                  autoCapitalize="sentences"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
-              )}
-            />
-            {errors.address && (
-              <Text style={styles.errorText}>{errors.address.message}</Text>
-            )}
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Tipo de Conta</Text>
-            <Controller
-              control={control}
-              name="type"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.radioContainer}>
-                  <TouchableOpacity
-                    style={styles.radioOption}
-                    onPress={() => onChange('CUSTOMER')}
-                    disabled={isLoading}
-                  >
-                    <View style={[styles.radio, value === 'CUSTOMER' && styles.radioSelected]}>
-                      {value === 'CUSTOMER' && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={styles.radioText}>Cliente</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.radioOption}
-                    onPress={() => onChange('ADMIN')}
-                    disabled={isLoading}
-                  >
-                    <View style={[styles.radio, value === 'ADMIN' && styles.radioSelected]}>
-                      {value === 'ADMIN' && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={styles.radioText}>Administrador</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+          <View style={styles.logoContainer}>
+            <Image
+              style={styles.logo}
+              source={require('@/assets/images/logo_benucci_arte.png')}
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Senha</Text>
-            <Controller
-              control={control}
-              name="password"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.password && styles.inputError]}
-                  placeholder="Digite sua senha"
-                  secureTextEntry
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
+          <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Nome Completo</Text>
+              <Controller
+                control={control}
+                name="name"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.name && styles.inputError]}
+                    placeholder="João Silva"
+                    autoCapitalize="words"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.name && (
+                <Text style={styles.errorText}>{errors.name.message}</Text>
               )}
-            />
-            {errors.password && (
-              <Text style={styles.errorText}>{errors.password.message}</Text>
-            )}
-          </View>
+            </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Confirmar Senha</Text>
-            <Controller
-              control={control}
-              name="confirmPassword"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.confirmPassword && styles.inputError]}
-                  placeholder="Digite a senha novamente"
-                  secureTextEntry
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  editable={!isLoading}
-                />
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>CPF</Text>
+              <Controller
+                control={control}
+                name="cpf"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.cpf && styles.inputError]}
+                    placeholder="123.456.789-00"
+                    keyboardType="numeric"
+                    onBlur={onBlur}
+                    onChangeText={(text) => {
+                      const formatted = formatCPF(text);
+                      onChange(text.replace(/\D/g, ''));
+                      setValue('cpf', text.replace(/\D/g, ''));
+                    }}
+                    value={formatCPF(value)}
+                    editable={!isLoading}
+                    maxLength={14}
+                  />
+                )}
+              />
+              {errors.cpf && (
+                <Text style={styles.errorText}>{errors.cpf.message}</Text>
               )}
-            />
-            {errors.confirmPassword && (
-              <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>
-            )}
-          </View>
+            </View>
 
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleSubmit(handleRegister)}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Criar Conta</Text>
-            )}
-          </TouchableOpacity>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Email</Text>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.email && styles.inputError]}
+                    placeholder="seu@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.email && (
+                <Text style={styles.errorText}>{errors.email.message}</Text>
+              )}
+            </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Já tem uma conta? </Text>
-            <Link href="/auth/login" asChild>
-              <TouchableOpacity disabled={isLoading}>
-                <Text style={styles.linkText}>Faça login</Text>
-              </TouchableOpacity>
-            </Link>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Telefone</Text>
+              <Controller
+                control={control}
+                name="phoneNumber"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.phoneNumber && styles.inputError]}
+                    placeholder="(11) 99999-9999"
+                    keyboardType="phone-pad"
+                    onBlur={onBlur}
+                    onChangeText={(text) => {
+                      const formatted = formatPhone(text);
+                      onChange(text.replace(/\D/g, ''));
+                      setValue('phoneNumber', text.replace(/\D/g, ''));
+                    }}
+                    value={formatPhone(value)}
+                    editable={!isLoading}
+                    maxLength={15}
+                  />
+                )}
+              />
+              {errors.phoneNumber && (
+                <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Endereço</Text>
+              <Controller
+                control={control}
+                name="address"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.address && styles.inputError]}
+                    placeholder="Rua X, 123 - Cidade"
+                    autoCapitalize="sentences"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.address && (
+                <Text style={styles.errorText}>{errors.address.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Tipo de Conta</Text>
+              <Controller
+                control={control}
+                name="type"
+                render={({ field: { onChange, value } }) => (
+                  <View style={styles.radioContainer}>
+                    <TouchableOpacity
+                      style={styles.radioOption}
+                      onPress={() => onChange('CUSTOMER')}
+                      disabled={isLoading}
+                    >
+                      <View style={[styles.radio, value === 'CUSTOMER' && styles.radioSelected]}>
+                        {value === 'CUSTOMER' && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={styles.radioText}>Cliente</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={styles.radioOption}
+                      onPress={() => onChange('ADMIN')}
+                      disabled={isLoading}
+                    >
+                      <View style={[styles.radio, value === 'ADMIN' && styles.radioSelected]}>
+                        {value === 'ADMIN' && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={styles.radioText}>Administrador</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Senha</Text>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.password && styles.inputError]}
+                    placeholder="Digite sua senha"
+                    secureTextEntry
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.password && (
+                <Text style={styles.errorText}>{errors.password.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Confirmar Senha</Text>
+              <Controller
+                control={control}
+                name="confirmPassword"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.confirmPassword && styles.inputError]}
+                    placeholder="Digite a senha novamente"
+                    secureTextEntry
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {errors.confirmPassword && (
+                <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>
+              )}
+            </View>
+
+            <TouchableOpacity
+              onPress={handleSubmit(handleRegister)}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Button title="Cadastrar" disabled={isLoading} />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Já tem uma conta? </Text>
+              <Link href="/auth/login" asChild>
+                <TouchableOpacity disabled={isLoading}>
+                  <Text style={styles.linkText}>Faça login</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <Image
+        style={styles.waveBottom}
+        source={require('@/assets/images/wavesbg.png')}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
+    position: 'relative',
+  },
+  waveTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    height: 250,
+    resizeMode: 'stretch',
+    transform: [{ scaleY: -1 }, { scaleX: -1 }],
+    zIndex: -1,
+  },
+  waveBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    height: 250,
+    resizeMode: 'stretch',
+    zIndex: -1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingVertical: 20,
     paddingHorizontal: 20,
+    paddingVertical: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 20,
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,
@@ -436,6 +470,15 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: '#666',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
   },
   form: {
     width: '100%',
@@ -491,45 +534,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioSelected: {
-    borderColor: '#2196F3',
+    borderColor: '#00BCD4',
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#2196F3',
+    backgroundColor: '#00BCD4',
   },
   radioText: {
     fontSize: 14,
     color: '#333',
-  },
-  button: {
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
+    marginBottom: 40,
   },
   footerText: {
     color: '#666',
     fontSize: 14,
   },
   linkText: {
-    color: '#2196F3',
+    color: '#00BCD4',
     fontSize: 14,
     fontWeight: 'bold',
   },

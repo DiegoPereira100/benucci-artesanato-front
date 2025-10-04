@@ -2,19 +2,26 @@ import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
   button: {
-    backgroundColor: 'cyan',
-    padding: 15,
+    backgroundColor: '#00BCD4',
+    borderRadius: 25,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 30,
-    borderColor: 'black',
-    borderWidth: 1,
-    marginVertical: 5,
+    marginTop: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
     width: 300,
+    alignSelf: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
-    color: 'black',
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: 'bold',
   },
 });
