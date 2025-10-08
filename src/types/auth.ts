@@ -27,7 +27,7 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   token: string;
-  user: User;
+  user: User | null;
 }
 
 export interface ApiError {

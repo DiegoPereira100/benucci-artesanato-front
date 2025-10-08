@@ -18,7 +18,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 // Esquema de validação
 const loginSchema = z.object({
@@ -60,7 +60,7 @@ export default function LoginScreen() {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log('Tentando navegação manual como fallback...');
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)/products');
       
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');
@@ -145,13 +145,13 @@ export default function LoginScreen() {
               )}
             </View>
             <TouchableOpacity
-              onPress={handleSubmit(handleLogin)}
-              disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Button title="Entrar" disabled={isLoading} />
+                <Button title="Entrar" 
+                onPress={handleSubmit(handleLogin)}
+                disabled={isLoading}/>
               )}
             </TouchableOpacity>
 

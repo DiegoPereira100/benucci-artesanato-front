@@ -28,6 +28,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarLabel: 'Início',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
@@ -38,6 +39,7 @@ export default function TabLayout() {
         options={{
           title: 'Explorar',
           tabBarLabel: 'Explorar',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="search" size={size} color={color} />
           ),
@@ -48,8 +50,20 @@ export default function TabLayout() {
         options={{
           title: 'Perfil',
           tabBarLabel: 'Perfil',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="products"
+        options={{
+          title: 'Produtos',
+          tabBarLabel: 'Produtos',
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetag" size={size} color={color} />
           ),
         }}
       />

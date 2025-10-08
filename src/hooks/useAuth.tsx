@@ -1,3 +1,5 @@
+// src/hooks/useAuth.tsx
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import authService from '../services/auth';
 import { User, LoginRequest, RegisterRequest } from '../types/auth';

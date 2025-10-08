@@ -18,7 +18,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 
 // Função para validar CPF
 const validateCPF = (cpf: string) => {
@@ -395,13 +395,13 @@ export default function RegisterScreen() {
             </View>
 
             <TouchableOpacity
-              onPress={handleSubmit(handleRegister)}
-              disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Button title="Cadastrar" disabled={isLoading} />
+                <Button title="Cadastrar"
+                onPress={handleSubmit(handleRegister)}
+                disabled={isLoading}/>
               )}
             </TouchableOpacity>
 

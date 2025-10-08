@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Welcome() {
@@ -15,7 +15,7 @@ export default function Welcome() {
     try {
       if (user) {
         console.log('Usuário logado - redirecionando para home');
-        router.replace('/(tabs)/home');
+        router.replace('/(tabs)/products');
       } else {
         console.log('Usuário não logado - redirecionando para login');
         router.replace('/auth/login');
