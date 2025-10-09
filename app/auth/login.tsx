@@ -53,15 +53,15 @@ export default function LoginScreen() {
       console.log('=== INICIANDO LOGIN ===');
       console.log('Dados do login:', data);
       setIsLoading(true);
-      
+
       await login(data);
       console.log('=== LOGIN CONCLUÍDO ===');
-      
+
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       console.log('Tentando navegação manual como fallback...');
       router.replace('/(tabs)/home');
-      
+
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');
       console.error('Erro:', error.message);
@@ -81,12 +81,12 @@ export default function LoginScreen() {
         style={styles.waveTop}
         source={require('@/assets/images/wavesbg.png')}
       />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
@@ -144,16 +144,23 @@ export default function LoginScreen() {
                 <Text style={styles.errorText}>{errors.password.message}</Text>
               )}
             </View>
-            <TouchableOpacity
-              onPress={handleSubmit(handleLogin)}
-              disabled={isLoading}
-            >
-              {isLoading ? (
+            {isLoading ? (
+              <View style={{
+                backgroundColor: '#00BCD4',
+                padding: 16,
+                borderRadius: 8,
+                alignItems: 'center',
+                marginTop: 20,
+              }}>
                 <ActivityIndicator color="#fff" />
-              ) : (
-                <Button title="Entrar" disabled={isLoading} />
-              )}
-            </TouchableOpacity>
+              </View>
+            ) : (
+              <Button
+                title="Entrar"
+                onPress={handleSubmit(handleLogin)}
+                disabled={isLoading}
+              />
+            )}
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Não tem uma conta? </Text>

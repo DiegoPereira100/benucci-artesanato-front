@@ -23,12 +23,12 @@ import { Button } from '@/components/ui/button';
 // Função para validar CPF
 const validateCPF = (cpf: string) => {
   cpf = cpf.replace(/[^\d]/g, '');
-  
+
   if (cpf.length !== 11) return false;
-  
+
   // Elimina CPFs conhecidos como inválidos
   if (/^(\d)\1+$/.test(cpf)) return false;
-  
+
   // Validação do primeiro dígito
   let sum = 0;
   for (let i = 0; i < 9; i++) {
@@ -37,7 +37,7 @@ const validateCPF = (cpf: string) => {
   let remainder = (sum * 10) % 11;
   if (remainder === 10) remainder = 0;
   if (remainder !== parseInt(cpf.charAt(9))) return false;
-  
+
   // Validação do segundo dígito
   sum = 0;
   for (let i = 0; i < 10; i++) {
@@ -46,7 +46,7 @@ const validateCPF = (cpf: string) => {
   remainder = (sum * 10) % 11;
   if (remainder === 10) remainder = 0;
   if (remainder !== parseInt(cpf.charAt(10))) return false;
-  
+
   return true;
 };
 
@@ -133,19 +133,19 @@ export default function RegisterScreen() {
   async function handleRegister(data: RegisterFormData) {
     try {
       setIsLoading(true);
-      
+
       const { confirmPassword, ...registerData } = data;
       registerData.cpf = registerData.cpf.replace(/\D/g, '');
       registerData.phoneNumber = registerData.phoneNumber.replace(/\D/g, '');
-      
+
       await register(registerData);
-      
+
       Alert.alert(
         'Cadastro Realizado!',
         'Sua conta foi criada com sucesso.',
         [
-          { 
-            text: 'OK', 
+          {
+            text: 'OK',
             onPress: () => {
               setTimeout(() => {
                 if (!user) {
@@ -173,12 +173,12 @@ export default function RegisterScreen() {
         style={styles.waveTop}
         source={require('@/assets/images/wavesbg.png')}
       />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
@@ -334,7 +334,7 @@ export default function RegisterScreen() {
                       </View>
                       <Text style={styles.radioText}>Cliente</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       style={styles.radioOption}
                       onPress={() => onChange('ADMIN')}
@@ -394,16 +394,23 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            <TouchableOpacity
-              onPress={handleSubmit(handleRegister)}
-              disabled={isLoading}
-            >
-              {isLoading ? (
+            {isLoading ? (
+              <View style={{
+                backgroundColor: '#00BCD4',
+                padding: 16,
+                borderRadius: 8,
+                alignItems: 'center',
+                marginTop: 20,
+              }}>
                 <ActivityIndicator color="#fff" />
-              ) : (
-                <Button title="Cadastrar" disabled={isLoading} />
-              )}
-            </TouchableOpacity>
+              </View>
+            ) : (
+              <Button
+                title="Cadastrar"
+                onPress={handleSubmit(handleRegister)}
+                disabled={isLoading}
+              />
+            )}
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Já tem uma conta? </Text>
