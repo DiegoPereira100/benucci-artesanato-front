@@ -18,6 +18,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
+import authService from '../../src/services/auth';
+import { redirectAfterAuth } from '../../src/utils/navigation';
 import { Button } from '@/components/ui/Button';
 
 // Esquema de validação
@@ -53,14 +55,22 @@ export default function LoginScreen() {
       console.log('=== INICIANDO LOGIN ===');
       console.log('Dados do login:', data);
       setIsLoading(true);
-      
-      await login(data);
-      console.log('=== LOGIN CONCLUÍDO ===');
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      console.log('Tentando navegação manual como fallback...');
-      router.replace('/(tabs)/products');
+      // chama o login e obtém o usuário retornado
+      const user = await login(data);
+      console.log('=== LOGIN CONCLUÍDO ===', user);
+
+      // pequena espera para garantir que estado/contexto foi atualizado
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // DEBUG: inspeciona token salvo e decodifica payload (temporário)
+      try {
+        await authService.debugToken();
+      } catch (e) {
+        console.warn('debugToken call failed', e);
+      }
+
+      // redireciona conforme role/type (utilitário centralizado)
+      redirectAfterAuth(user);
       
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');

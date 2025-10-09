@@ -13,12 +13,21 @@ class AuthService {
 
       console.log('📋 Payload do JWT decodificado:', payload);
 
+      // Prioriza 'type' do JWT, depois 'role' (removendo ROLE_), default 'USER'
+      let userType: 'USER' | 'ADMIN' = 'USER';
+      
+      if (payload.type) {
+        userType = payload.type.toUpperCase() as 'USER' | 'ADMIN';
+      } else if (payload.role) {
+        const cleanRole = payload.role.replace('ROLE_', '').toUpperCase();
+        userType = cleanRole as 'USER' | 'ADMIN';
+      }
+
       return {
         id: payload.id,
         email: payload.sub || payload.email,
         name: payload.name || '',
-        type: payload.type || 'CUSTOMER',
-        // não assumimos address/cpf/phoneNumber no JWT
+        type: userType,
       };
     } catch (error) {
       console.error('❌ Erro ao decodificar JWT:', error);
@@ -26,27 +35,30 @@ class AuthService {
     }
   }
 
+  // Verifica se o token tem o formato JWT (3 partes separadas por '.')
+  private isJwt(token: string | null | undefined): boolean {
+    if (!token) return false;
+    const parts = token.split('.');
+    return parts.length === 3;
+  }
+
   // Busca perfil completo no backend
   private async fetchUserProfile(userId: number): Promise<User | null> {
     try {
       console.log('🔍 fetchUserProfile -> GET /users/' + userId);
       const response = await apiService.instance.get(`/users/${userId}`);
-      console.log('✅ fetchUserProfile response.status:', response.status);
-      console.log('✅ fetchUserProfile data:', response.data);
-      return response.data as User;
+      console.log('✅ fetchUserProfile response:', response.data);
+      
+      const user = response.data as User;
+      
+      // Normaliza o type recebido do backend
+      if (user.type) {
+        user.type = user.type.toUpperCase() as 'USER' | 'ADMIN';
+      }
+      
+      return user;
     } catch (error: any) {
       console.error('❌ Erro ao buscar perfil do usuário:', error?.response?.status, error?.message);
-      // tentar recuperar do storage como último recurso
-      try {
-        console.log('🔄 fetchUserProfile fallback: tentando recuperar do AsyncStorage');
-        const existing = await this.getUser();
-        if (existing && existing.id === userId) {
-          console.log('✅ fetchUserProfile fallback encontrou usuário no storage');
-          return existing;
-        }
-      } catch (e) {
-        console.error('❌ Erro no fallback do fetchUserProfile:', e);
-      }
       return null;
     }
   }
@@ -58,24 +70,29 @@ class AuthService {
         id: updates.id || 0,
         email: updates.email || '',
         name: updates.name || '',
-        type: updates.type || 'CUSTOMER',
+        type: (updates.type?.toUpperCase() as 'USER' | 'ADMIN') || 'USER',
         cpf: updates.cpf || '',
         phoneNumber: updates.phoneNumber || '',
         address: updates.address || '',
       };
     }
 
+    // Normaliza o type antes de mesclar
+    const normalizedType = updates.type 
+      ? (updates.type.toUpperCase() as 'USER' | 'ADMIN')
+      : existing.type;
+
     return {
       ...existing,
       ...updates,
-      // preserva campos importantes quando o update é vazio/undefined
-      address: (updates.address !== undefined && updates.address !== null && updates.address !== '') ? updates.address : existing.address,
-      cpf: (updates.cpf !== undefined && updates.cpf !== null && updates.cpf !== '') ? updates.cpf : existing.cpf,
-      phoneNumber: (updates.phoneNumber !== undefined && updates.phoneNumber !== null && updates.phoneNumber !== '') ? updates.phoneNumber : existing.phoneNumber,
+      type: normalizedType,
+      // Preserva campos quando update é vazio
+      address: (updates.address && updates.address.trim() !== '') ? updates.address : existing.address,
+      cpf: (updates.cpf && updates.cpf.trim() !== '') ? updates.cpf : existing.cpf,
+      phoneNumber: (updates.phoneNumber && updates.phoneNumber.trim() !== '') ? updates.phoneNumber : existing.phoneNumber,
     };
   }
 
-  // saveUser agora MESCLA com dados existentes para evitar sobrescrever com campos vazios
   async saveUser(user: User): Promise<void> {
     try {
       console.log('💾 saveUser called. Candidate to save:', user);
@@ -85,17 +102,16 @@ class AuthService {
 
       const finalUser = this.mergeUserData(existing, user);
 
-      console.log('🔄 saveUser -> final merged object that will be saved:', finalUser);
+      console.log('🔄 saveUser -> final merged object:', finalUser);
 
       await AsyncStorage.setItem('@user_data', JSON.stringify(finalUser));
 
-      // verificação imediata
+      // Verificação
       const verify = await AsyncStorage.getItem('@user_data');
       const verifiedUser = verify ? JSON.parse(verify) : null;
-      console.log('✅ saveUser verification - Dados salvos:', verifiedUser);
-      console.log('📍 Endereço verificado:', verifiedUser?.address);
+      console.log('✅ saveUser verification:', verifiedUser);
     } catch (error) {
-      console.error('❌ ERRO CRÍTICO ao salvar usuário:', error);
+      console.error('❌ ERRO ao salvar usuário:', error);
     }
   }
 
@@ -104,8 +120,7 @@ class AuthService {
       const userData = await AsyncStorage.getItem('@user_data');
       if (userData) {
         const user = JSON.parse(userData) as User;
-        console.log('✅ getUser -> Usuário recuperado do storage:', user);
-        console.log('📍 Endereço recuperado:', user.address);
+        console.log('✅ getUser -> Usuário recuperado:', user);
         return user;
       }
       console.log('⚠️ getUser -> Nenhum usuário no storage');
@@ -117,22 +132,65 @@ class AuthService {
   }
 
   async isAuthenticated(): Promise<boolean> {
-    const token = await apiService.getToken();
-    const isAuth = !!token;
-    console.log('🔍 isAuthenticated:', isAuth);
-    return isAuth;
+    try {
+      const token = await apiService.getToken();
+      console.log('🔍 isAuthenticated -> token present:', !!token);
+      
+      if (!token) return false;
+
+      // Verifica se é JWT válido
+      if (this.isJwt(token)) {
+        console.log('🔍 isAuthenticated -> token is valid JWT');
+        return true;
+      }
+
+      // Token inválido - remove
+      console.warn('🔍 isAuthenticated -> token is NOT valid JWT, removing');
+      await apiService.removeToken();
+      return false;
+    } catch (error) {
+      console.error('🔍 isAuthenticated -> error:', error);
+      return false;
+    }
   }
 
   async getToken(): Promise<string | null> {
     return await apiService.getToken();
   }
 
-  // Atualiza parcialmente os dados do usuário (usa merge interno)
+  async debugToken(): Promise<void> {
+    try {
+      const token = await apiService.getToken();
+      console.log('🔎 debugToken -> token present:', !!token);
+      if (!token) return;
+
+      const masked = token.length > 12 ? `${token.slice(0,6)}...${token.slice(-6)}` : token;
+      console.log('🔎 debugToken -> masked token:', masked);
+
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        console.log('🔎 debugToken -> valid JWT format');
+        try {
+          const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(atob(base64));
+          console.log('🔎 debugToken -> JWT payload:', payload);
+        } catch (e) {
+          console.warn('🔎 debugToken -> failed to decode payload:', e);
+        }
+      } else {
+        console.warn('🔎 debugToken -> NOT a valid JWT, removing');
+        await apiService.removeToken();
+      }
+    } catch (error) {
+      console.error('🔎 debugToken -> error:', error);
+    }
+  }
+
   async updateUserData(updates: Partial<User>): Promise<User | null> {
     try {
       const currentUser = await this.getUser();
       if (!currentUser) {
-        console.error('❌ updateUserData: nenhum usuário logado para atualizar');
+        console.error('❌ updateUserData: nenhum usuário logado');
         return null;
       }
       const updatedUser = this.mergeUserData(currentUser, updates);
@@ -140,120 +198,66 @@ class AuthService {
       console.log('✅ Dados do usuário atualizados:', updatedUser);
       return updatedUser;
     } catch (error) {
-      console.error('❌ Erro ao atualizar dados do usuário:', error);
+      console.error('❌ Erro ao atualizar dados:', error);
       return null;
     }
   }
 
-  // LOGIN robusto
+  // LOGIN
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
-      console.log('🔐 login -> iniciando...');
-      const existingUser = await this.getUser();
-      console.log('👤 existingUser (antes do login):', existingUser);
-
+      console.log('🔐 login -> iniciando');
+      
       const response = await apiService.instance.post('/auth/login', credentials);
-      console.log('📥 login response.data:', response.data);
+      console.log('📥 login response:', response.data);
 
-      // Possíveis formatos:
-      // 1) { token: '...' , user: { ... } }
-      // 2) 'jwt-token-string'
-      // 3) { token: '...' }
-      // 4) { id: ..., email: ..., ... } (usuário)
-      // 5) { user: {...} }
+      // Backend deve retornar: { token: '...', user: {...} }
+      if (!response.data || !response.data.token) {
+        throw new Error('Resposta inválida do servidor');
+      }
 
-      // Caso 1: objeto com token e possivelmente user
-      if (response.data && typeof response.data === 'object') {
-        if (response.data.token) {
-          const token = response.data.token as string;
-          console.log('💾 login -> recebendo token string do backend');
-          await apiService.saveToken(token);
+      const { token, user: userFromBackend } = response.data;
 
-          // tenta decodificar e obter id
-          const basic = this.decodeJWT(token);
-          if (basic?.id) {
-            const full = await this.fetchUserProfile(basic.id);
-            if (full) {
-              console.log('✅ login -> perfil completo obtido após token');
-              await this.saveUser(full);
-              return { token, user: full };
-            } else {
-              console.warn('⚠️ login -> não foi possível obter perfil completo, usando fallback com merge');
-              const fallback = this.mergeUserData(existingUser, {
-                id: basic.id,
-                email: basic.email || credentials.email,
-                name: basic.name || '',
-                type: basic.type || 'CUSTOMER'
-              });
-              await this.saveUser(fallback);
-              return { token, user: fallback };
-            }
-          } else {
-            console.warn('⚠️ login -> token decodificado não possui id, salvando token e mantendo user existente');
-            return { token, user: existingUser || null };
-          }
-        }
+      // Valida se é JWT
+      if (!this.isJwt(token)) {
+        throw new Error('Token inválido recebido do servidor');
+      }
 
-        // Se response.data.user existe (backend retornou o user diretamente)
-        if (response.data.user) {
-          const userFromBackend = response.data.user as User;
-          console.log('✅ login -> backend retornou user dentro do body');
-          // Se houver id, tentamos buscar completo (garante endereço atualizado)
-          if (userFromBackend.id) {
-            const full = await this.fetchUserProfile(userFromBackend.id);
-            const toSave = full || userFromBackend;
-            await this.saveUser(toSave);
-            // se response.data.token também existe, salve
-            if (response.data.token) {
-              await apiService.saveToken(response.data.token);
-            }
-            return { token: response.data.token || (await apiService.getToken()) || '', user: toSave };
-          } else {
-            await this.saveUser(userFromBackend);
-            return { token: (await apiService.getToken()) || '', user: userFromBackend };
-          }
-        }
+      // Salva o token
+      await apiService.saveToken(token);
 
-        // Se response.data parece ser o próprio user
-        if (response.data.id && response.data.email) {
-          const userFromBackend = response.data as User;
-          console.log('✅ login -> backend retornou user diretamente no body (sem token)');
-          // se houver token salvo, mantemos; caso contrário, não criamos token automaticamente aqui (aproach seguro)
-          const currentToken = await apiService.getToken();
-          await this.saveUser(userFromBackend);
-          return { token: currentToken || '', user: userFromBackend };
+      // Normaliza o user do backend
+      if (userFromBackend) {
+        userFromBackend.type = (userFromBackend.type?.toUpperCase() || 'USER') as 'USER' | 'ADMIN';
+        await this.saveUser(userFromBackend);
+        return { token, user: userFromBackend };
+      }
+
+      // Fallback: busca perfil completo
+      const decoded = this.decodeJWT(token);
+      if (decoded?.id) {
+        const fullProfile = await this.fetchUserProfile(decoded.id);
+        if (fullProfile) {
+          await this.saveUser(fullProfile);
+          return { token, user: fullProfile };
         }
       }
 
-      // Caso 2: backend retornou string (jwt)
-      if (typeof response.data === 'string') {
-        const token = response.data as string;
-        console.log('💾 login -> backend retornou string JWT diretamente');
-        await apiService.saveToken(token);
-        const basic = this.decodeJWT(token);
-        if (basic?.id) {
-          const full = await this.fetchUserProfile(basic.id);
-          if (full) {
-            await this.saveUser(full);
-            return { token, user: full };
-          } else {
-            const fallback = this.mergeUserData(existingUser, {
-              id: basic.id,
-              email: basic.email || credentials.email,
-              name: basic.name || '',
-              type: basic.type || 'CUSTOMER'
-            });
-            await this.saveUser(fallback);
-            return { token, user: fallback };
-          }
-        } else {
-          return { token, user: existingUser || null };
-        }
-      }
+      // Último fallback: usa dados decodificados do JWT
+      const fallbackUser: User = {
+        id: decoded?.id || 0,
+        email: decoded?.email || credentials.email,
+        name: decoded?.name || '',
+        type: decoded?.type || 'USER',
+        cpf: '',
+        phoneNumber: '',
+        address: '',
+      };
+      await this.saveUser(fallbackUser);
+      return { token, user: fallbackUser };
 
-      throw new Error('Formato de resposta inválido no login');
     } catch (error: any) {
-      console.error('❌ Erro no login:', error?.response?.data || error.message || error);
+      console.error('❌ Erro no login:', error?.response?.data || error.message);
       if (error.response) {
         throw new Error(error.response.data?.message || 'Erro ao fazer login');
       }
@@ -261,88 +265,61 @@ class AuthService {
     }
   }
 
-  // REGISTER robusto
+  // REGISTER
   async register(userData: RegisterRequest): Promise<AuthResponse> {
     try {
-      console.log('📝 register -> iniciando com:', userData);
+      console.log('📝 register -> iniciando');
 
       const response = await apiService.instance.post('/auth/register', userData);
-      console.log('📥 register response.data:', response.data);
+      console.log('📥 register response:', response.data);
 
-      // Se backend forneceu token
-      if (response.data && typeof response.data === 'object' && response.data.token) {
-        const token = response.data.token as string;
-        console.log('💾 register -> token recebido');
-        await apiService.saveToken(token);
+      // Backend deve retornar: { token: '...', user: {...} }
+      if (!response.data || !response.data.token) {
+        throw new Error('Resposta inválida do servidor');
+      }
 
-        const basic = this.decodeJWT(token);
-        if (basic?.id) {
-          const full = await this.fetchUserProfile(basic.id);
-          if (full) {
-            await this.saveUser(full);
-            return { token, user: full };
-          } else {
-            // fallback: usa dados do registro (preserva address do form)
-            const userToSave: User = {
-              id: basic.id,
-              email: basic.email || userData.email,
-              name: basic.name || userData.name,
-              type: basic.type || 'CUSTOMER',
-              cpf: userData.cpf || '',
-              phoneNumber: userData.phoneNumber || '',
-              address: userData.address || '',
-            };
-            await this.saveUser(userToSave);
-            return { token, user: userToSave };
-          }
-        } else {
-          // salvamos token, e usamos os dados do response.user se existir
-          if (response.data.user) {
-            const userFromBackend: User = response.data.user;
-            await this.saveUser(userFromBackend);
-            return { token, user: userFromBackend };
-          }
-          return { token, user: null };
+      const { token, user: userFromBackend } = response.data;
+
+      // Valida se é JWT
+      if (!this.isJwt(token)) {
+        throw new Error('Token inválido recebido do servidor');
+      }
+
+      // Salva o token
+      await apiService.saveToken(token);
+
+      // Normaliza o user do backend
+      if (userFromBackend) {
+        userFromBackend.type = (userFromBackend.type?.toUpperCase() || userData.type) as 'USER' | 'ADMIN';
+        await this.saveUser(userFromBackend);
+        return { token, user: userFromBackend };
+      }
+
+      // Fallback: busca perfil completo
+      const decoded = this.decodeJWT(token);
+      if (decoded?.id) {
+        const fullProfile = await this.fetchUserProfile(decoded.id);
+        if (fullProfile) {
+          await this.saveUser(fullProfile);
+          return { token, user: fullProfile };
         }
       }
 
-      // Se backend retornou user sem token
-      if (response.data && typeof response.data === 'object' && response.data.id) {
-        console.log('⚠️ register -> backend retornou usuário sem token');
-        const userFromBackend: User = {
-          id: response.data.id,
-          email: response.data.email || userData.email,
-          name: response.data.name || userData.name,
-          type: response.data.type || 'CUSTOMER',
-          cpf: response.data.cpf || userData.cpf || '',
-          phoneNumber: response.data.phoneNumber || userData.phoneNumber || '',
-          address: response.data.address || userData.address || '',
-        };
-        await this.saveUser(userFromBackend);
-
-        // Gerar token temporário (se realmente necessário) — manter compatibilidade
-        const tempToken = btoa(JSON.stringify({ id: userFromBackend.id, email: userFromBackend.email }));
-        await apiService.saveToken(tempToken);
-        return { token: tempToken, user: userFromBackend };
-      }
-
-      // Fallback completo: criar user local preservando address do registro
-      console.log('⚠️ register -> fallback completo');
+      // Último fallback: usa dados do registro
       const fallbackUser: User = {
-        id: Date.now(),
+        id: decoded?.id || Date.now(),
         email: userData.email,
         name: userData.name,
-        type: 'CUSTOMER',
-        cpf: userData.cpf || '',
-        phoneNumber: userData.phoneNumber || '',
-        address: userData.address || '',
+        type: userData.type,
+        cpf: userData.cpf,
+        phoneNumber: userData.phoneNumber,
+        address: userData.address,
       };
       await this.saveUser(fallbackUser);
-      const tempToken = btoa(JSON.stringify({ id: fallbackUser.id, email: fallbackUser.email }));
-      await apiService.saveToken(tempToken);
-      return { token: tempToken, user: fallbackUser };
+      return { token, user: fallbackUser };
+
     } catch (error: any) {
-      console.error('❌ Erro no register:', error?.response?.data || error.message || error);
+      console.error('❌ Erro no register:', error?.response?.data || error.message);
       if (error.response) {
         throw new Error(error.response.data?.message || 'Erro ao cadastrar usuário');
       }
@@ -352,7 +329,7 @@ class AuthService {
 
   async logout(): Promise<void> {
     try {
-      console.log('👋 logout -> iniciando...');
+      console.log('👋 logout -> iniciando');
       await apiService.removeToken();
       await AsyncStorage.removeItem('@user_data');
       console.log('✅ logout -> finalizado');

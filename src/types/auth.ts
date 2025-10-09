@@ -7,7 +7,7 @@ export interface User {
   cpf: string;
   phoneNumber: string;
   address: string;
-  type: 'CUSTOMER' | 'ADMIN';
+  type: 'USER' | 'ADMIN';
 }
 
 export interface LoginRequest {
@@ -22,7 +22,7 @@ export interface RegisterRequest {
   cpf: string;
   phoneNumber: string;
   address: string;
-  type: 'CUSTOMER' | 'ADMIN';
+  type: 'USER' | 'ADMIN';
 }
 
 export interface AuthResponse {

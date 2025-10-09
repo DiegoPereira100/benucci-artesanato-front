@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
+import authService from '../../src/services/auth';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -31,6 +32,20 @@ export default function ProfileScreen() {
 
       <TouchableOpacity style={styles.logoutButton} onPress={logout}>
         <Text style={styles.logoutText}>Sair da Conta</Text>
+      </TouchableOpacity>
+
+      {/* Temporary debug button - remove in production */}
+      <TouchableOpacity
+        style={[styles.logoutButton, { marginTop: 8 }]}
+        onPress={async () => {
+          try {
+            await authService.debugToken();
+          } catch (e) {
+            console.error('debugToken button error', e);
+          }
+        }}
+      >
+        <Text style={[styles.logoutText, { color: '#2196F3' }]}>Debug token</Text>
       </TouchableOpacity>
     </View>
   );

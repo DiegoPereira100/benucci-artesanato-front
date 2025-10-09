@@ -1,8 +1,8 @@
 import { ExpoRoot } from "expo-router";
 import { AppRegistry } from "react-native";
-import { name as appName } from "./app.json";
+import appJson from "./app.json";
+const appName = appJson.expo.name;
 
-// Must be exported or Fast Refresh won't update the context
 export default function App() {
   const ctx = require.context("./app");
   return <ExpoRoot context={ctx} />;

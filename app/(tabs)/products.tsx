@@ -15,14 +15,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Product } from '@/types/product';
-import { User } from '@/types/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
+import { useRouter } from 'expo-router';
+import { useCart } from '@/contexts/CartContext';
 
-// ✅ importação dos novos componentes
 import { ProductCard } from '@/components/ui/ProductCard';
 import { ProductModal } from '@/components/ui/ProductModal';
+import { productService } from '@/services/productService';
 
 const { width } = Dimensions.get('window');
 
@@ -32,12 +33,15 @@ export default function ExploreScreen() {
   const [activeCategory, setActiveCategory] = useState('Tudo');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const { user } = useAuth();
+  const router = useRouter();
+  const { addToCart, totalItems } = useCart();
   
   const [location, setLocation] = useState<{ city: string; state: string }>({ city: '', state: '' });
 
-  // ✅ estados para o modal
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -85,33 +89,125 @@ export default function ExploreScreen() {
 
   const loadInitialData = async () => {
     try {
-      const getImageUri = () => {
-        try {
-          if (Platform.OS !== 'web') {
-            return Image.resolveAssetSource(require('@/assets/images/gato.png')).uri;
-          }
-          return '/assets/images/gato.png';
-        } catch {
-          return 'https://via.placeholder.com/200x200.png?text=Produto';
-        }
-      };
-
-      const imageUri = getImageUri();
-      const mockProducts = [
-        { id: 1, name: 'Mandala Colorida', description: 'Linda mandala colorida', price: 35.90, category: 'Mandala', image_url: imageUri },
-        { id: 2, name: 'Chaveiro Gato', description: 'Chaveiro em formato de gato', price: 15.50, category: 'Chaveiro', image_url: imageUri },
-        { id: 3, name: 'Porta Chaves Decorado', description: 'Porta chaves decorativo', price: 45.00, category: 'Porta chaves', image_url: imageUri },
-        { id: 4, name: 'Imã Geladeira', description: 'Imã decorativo para geladeira', price: 12.00, category: 'Imã', image_url: imageUri },
-        { id: 5, name: 'Gato Decorativo', description: 'Gato decorativo de parede', price: 28.90, category: 'Gato', image_url: imageUri },
-        { id: 6, name: 'Mandala Grande', description: 'Mandala grande e detalhada', price: 65.00, category: 'Mandala', image_url: imageUri },
-      ];
-
-      setProducts(mockProducts);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os produtos');
+      setLoading(true);
+      setError(null);
+      
+      // Verificar se o usuário está autenticado
+      if (!user) {
+        console.warn('Usuário não autenticado, tentando carregar produtos...');
+      }
+      
+      // Buscar produtos reais da API
+      const productsData = await productService.getAllProducts();
+      setProducts(productsData);
+      
+      if (productsData.length === 0) {
+        setError('Nenhum produto disponível no momento');
+      }
+    } catch (error: any) {
+      console.error('Erro ao carregar produtos:', error);
+      
+      // Tratamento específico para erro 403
+      if (error?.response?.status === 403) {
+        setError('Acesso negado. Faça login para ver os produtos.');
+        Alert.alert(
+          'Autenticação necessária',
+          'Você precisa estar logado para visualizar os produtos.',
+          [
+            { 
+              text: 'Fazer Login', 
+              onPress: () => router.push('/(auth)/login') 
+            },
+            { 
+              text: 'Cancelar', 
+              style: 'cancel' 
+            }
+          ]
+        );
+      } else if (error?.response?.status === 401) {
+        setError('Sessão expirada. Faça login novamente.');
+        Alert.alert(
+          'Sessão Expirada',
+          'Sua sessão expirou. Por favor, faça login novamente.',
+          [
+            { 
+              text: 'Fazer Login', 
+              onPress: () => router.push('/(auth)/login') 
+            }
+          ]
+        );
+      } else if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+        setError('Tempo de conexão esgotado. Verifique sua internet.');
+        Alert.alert(
+          'Erro de Conexão',
+          'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.',
+          [
+            { 
+              text: 'Tentar novamente', 
+              onPress: () => loadInitialData() 
+            },
+            { 
+              text: 'OK', 
+              style: 'cancel' 
+            }
+          ]
+        );
+      } else if (error?.message === 'Network Error') {
+        setError('Erro de rede. Verifique sua conexão.');
+        Alert.alert(
+          'Sem Conexão',
+          'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.',
+          [
+            { 
+              text: 'Tentar novamente', 
+              onPress: () => loadInitialData() 
+            }
+          ]
+        );
+      } else {
+        setError('Erro ao carregar produtos. Tente novamente.');
+        Alert.alert(
+          'Erro',
+          'Não foi possível carregar os produtos. Tente novamente mais tarde.',
+          [
+            { 
+              text: 'Tentar novamente', 
+              onPress: () => loadInitialData() 
+            },
+            { 
+              text: 'OK', 
+              style: 'cancel' 
+            }
+          ]
+        );
+      }
+      
+      // Fallback para produtos mockados em caso de erro (opcional)
+      setProducts([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      const productsData = await productService.getAllProducts();
+      setProducts(productsData);
+    } catch (error: any) {
+      console.error('Erro ao atualizar produtos:', error);
+      
+      if (error?.response?.status === 403) {
+        Alert.alert(
+          'Acesso Negado',
+          'Você precisa estar logado para visualizar os produtos.'
+        );
+      } else {
+        Alert.alert('Erro', 'Não foi possível atualizar os produtos');
+      }
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -122,10 +218,28 @@ export default function ExploreScreen() {
     setFilteredProducts(filtered);
   }, [products, activeCategory, searchQuery]);
 
-  // ✅ agora o clique abre o modal
   const handleProductPress = (product: Product) => {
     setSelectedProduct(product);
     setModalVisible(true);
+  };
+
+  const handleAddToCart = (product: Product, quantity: number) => {
+    // Verificar se há estoque suficiente
+    if (quantity > product.stock) {
+      Alert.alert(
+        'Estoque insuficiente',
+        `Disponível apenas ${product.stock} unidade(s) deste produto.`
+      );
+      return;
+    }
+
+    addToCart(product, quantity);
+    setModalVisible(false);
+    Alert.alert(
+      'Sucesso!',
+      `${quantity}x ${product.name} adicionado ao carrinho`,
+      [{ text: 'OK' }]
+    );
   };
 
   const getUserInitials = (name: string) => {
@@ -159,9 +273,18 @@ export default function ExploreScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.notificationBtn}>
-          <Ionicons name="notifications-outline" size={24} color="#666" />
-          <View style={styles.notificationDot} />
+        <TouchableOpacity 
+          style={styles.cartBtn}
+          onPress={() => router.push('/(tabs)/cart')}
+        >
+          <Ionicons name="cart-outline" size={24} color="#666" />
+          {totalItems > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>
+                {totalItems > 99 ? '99+' : totalItems}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -206,20 +329,37 @@ export default function ExploreScreen() {
         </ScrollView>
       </View>
     </View>
-  ), [user, location, searchQuery, activeCategory]);
+  ), [user, location, searchQuery, activeCategory, totalItems]);
 
-  // ✅ substituído por ProductCard
   const renderProduct = ({ item }: { item: Product }) => (
     <ProductCard product={item} onPress={() => handleProductPress(item)} />
   );
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="search-outline" size={64} color="#CCCCCC" />
-      <Text style={styles.emptyText}>Nenhum produto encontrado</Text>
-      <Text style={styles.emptySubText}>
-        {searchQuery ? 'Tente buscar por outro termo' : 'Não há produtos nesta categoria'}
+      <Ionicons 
+        name={error ? "alert-circle-outline" : "search-outline"} 
+        size={64} 
+        color={error ? "#FF6B6B" : "#CCCCCC"} 
+      />
+      <Text style={styles.emptyText}>
+        {error || 'Nenhum produto encontrado'}
       </Text>
+      <Text style={styles.emptySubText}>
+        {error 
+          ? 'Verifique sua conexão e tente novamente'
+          : searchQuery 
+            ? 'Tente buscar por outro termo' 
+            : 'Não há produtos nesta categoria'
+        }
+      </Text>
+      <TouchableOpacity 
+        style={styles.retryButton}
+        onPress={loadInitialData}
+      >
+        <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
+        <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -245,9 +385,10 @@ export default function ExploreScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       />
 
-      {/* ✅ modal de detalhes */}
       <ProductModal
         visible={modalVisible}
         product={selectedProduct}
@@ -255,18 +396,17 @@ export default function ExploreScreen() {
           setModalVisible(false);
           setSelectedProduct(null);
         }}
+        onAddToCart={handleAddToCart}
       />
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
-  // Container Principal
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  
-  // Loading State
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -279,16 +419,12 @@ const styles = StyleSheet.create({
     color: '#666666',
     fontWeight: '500',
   },
-
-  // Header Section
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 24,
     backgroundColor: '#FFFFFF',
   },
-
-  // User Section
   userSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -332,27 +468,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999999',
   },
-  notificationBtn: {
+  cartBtn: {
     width: 48,
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
     borderRadius: 24,
+    position: 'relative',
   },
-  notificationDot: {
+  cartBadge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 10,
-    height: 10,
+    top: 6,
+    right: 6,
     backgroundColor: '#F44336',
-    borderRadius: 5,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    paddingHorizontal: 4,
   },
-
-  // Search Section
+  cartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -375,8 +518,6 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 8,
   },
-
-  // Category Section
   categorySection: {
     marginBottom: 8,
   },
@@ -418,8 +559,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-
-  // Product List
   listContent: {
     paddingBottom: 24,
   },
@@ -428,58 +567,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 4,
   },
-
-  // Product Card
-  productCard: {
-    width: (width - 52) / 2,
-    marginBottom: 16,
-  },
-  productGradient: {
-    padding: 16,
-    borderRadius: 20,
-    alignItems: 'center',
-    minHeight: 220,
-    justifyContent: 'space-between',
-  },
-  productImage: {
-    width: '100%',
-    aspectRatio: 1,
-    marginBottom: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  productImageContent: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  productImagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  productEmoji: {
-    fontSize: 48,
-  },
-  productName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 6,
-    textAlign: 'center',
-    lineHeight: 20,
-    minHeight: 40,
-  },
-  productPrice: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#00BCD4',
-  },
-
-  // Empty State
   emptyContainer: {
     paddingVertical: 60,
     paddingHorizontal: 40,
@@ -498,5 +585,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999999',
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00BCD4',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

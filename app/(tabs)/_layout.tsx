@@ -2,8 +2,25 @@
 
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
+import { useCart } from '@/contexts/CartContext';
+
+// Componente para o badge do carrinho
+function TabBarBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>
+        {count > 99 ? '99+' : count}
+      </Text>
+    </View>
+  );
+}
 
 export default function TabLayout() {
+  const { totalItems } = useCart();
+
   return (
     <Tabs
       screenOptions={{
@@ -34,17 +51,25 @@ export default function TabLayout() {
           ),
         }}
       />
+
+      {/* explore tab removed: using products as the catalog screen */}
+
+      {/* NOVA TAB DO CARRINHO */}
       <Tabs.Screen
-        name="explore"
+        name="cart"
         options={{
-          title: 'Explorar',
-          tabBarLabel: 'Explorar',
+          title: 'Carrinho',
+          tabBarLabel: 'Carrinho',
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+            <View>
+              <Ionicons name="cart" size={size} color={color} />
+              <TabBarBadge count={totalItems} />
+            </View>
           ),
         }}
       />
+
       <Tabs.Screen
         name="profile"
         options={{
@@ -56,6 +81,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="products"
         options={{
@@ -70,3 +96,25 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    right: -8,
+    top: -4,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+});

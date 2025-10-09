@@ -18,7 +18,11 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
+import { redirectAfterAuth } from '../../src/utils/navigation';
 import { Button } from '@/components/ui/Button';
+
+// Tipos de usuário - ajustado para corresponder ao backend
+type UserType = 'user' | 'admin';
 
 // Função para validar CPF
 const validateCPF = (cpf: string) => {
@@ -50,7 +54,7 @@ const validateCPF = (cpf: string) => {
   return true;
 };
 
-// Esquema de validação
+// Esquema de validação - ajustado para usar lowercase
 const registerSchema = z.object({
   name: z.string()
     .min(1, 'Nome é obrigatório')
@@ -73,7 +77,7 @@ const registerSchema = z.object({
   address: z.string()
     .min(1, 'Endereço é obrigatório')
     .min(5, 'Endereço deve ter no mínimo 5 caracteres'),
-  type: z.enum(['CUSTOMER', 'ADMIN']),
+  type: z.enum(['user', 'admin']), // Mudado para lowercase
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'As senhas não coincidem',
   path: ['confirmPassword'],
@@ -84,6 +88,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterScreen() {
   const { register, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedUserType, setSelectedUserType] = useState<UserType>('user'); // Mudado para lowercase
 
   const {
     control,
@@ -101,7 +106,7 @@ export default function RegisterScreen() {
       confirmPassword: '',
       phoneNumber: '',
       address: '',
-      type: 'CUSTOMER',
+      type: 'user', // Mudado para lowercase
     },
   });
 
@@ -130,33 +135,45 @@ export default function RegisterScreen() {
     return value.slice(0, 15);
   };
 
+  // Função para obter a cor do tema baseada no tipo de usuário
+  const getThemeColor = () => {
+    return selectedUserType === 'admin' ? '#FF6B35' : '#00BCD4';
+  };
+
   async function handleRegister(data: RegisterFormData) {
     try {
+      console.log('=== INICIANDO CADASTRO ===');
+      console.log('Tipo de usuário selecionado:', selectedUserType);
       setIsLoading(true);
       
-      const { confirmPassword, ...registerData } = data;
-      registerData.cpf = registerData.cpf.replace(/\D/g, '');
-      registerData.phoneNumber = registerData.phoneNumber.replace(/\D/g, '');
-      
-      await register(registerData);
-      
-      Alert.alert(
-        'Cadastro Realizado!',
-        'Sua conta foi criada com sucesso.',
-        [
-          { 
-            text: 'OK', 
-            onPress: () => {
-              setTimeout(() => {
-                if (!user) {
-                  router.replace('/auth/login');
-                }
-              }, 500);
-            }
-          }
-        ]
-      );
+     const { confirmPassword, ...rest } = data;
+
+      // Cria objeto para envio ao backend, convertendo type para maiúsculo
+      const registerPayload = {
+        ...rest,
+        cpf: rest.cpf.replace(/\D/g, ''),
+        phoneNumber: rest.phoneNumber.replace(/\D/g, ''),
+        type: (selectedUserType === 'admin' ? 'ADMIN' : 'USER') as 'ADMIN' | 'USER',
+      };
+
+      console.log('Dados enviados para o backend:', registerPayload);
+      console.log('Campo type sendo enviado:', registerPayload.type);
+
+      await register(registerPayload);
+
+      // Aguarda o contexto atualizar (se o registro fizer login automático)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      if (user) {
+        // Se o contexto já tiver o usuário, redireciona conforme role
+        redirectAfterAuth(user);
+      } else {
+        // Caso o backend não tenha feito login automático, vai para a tela de login
+        router.replace('/auth/login');
+      }
     } catch (error: any) {
+      console.error('=== ERRO NO CADASTRO ===');
+      console.error('Erro:', error.message);
       Alert.alert(
         'Erro no Cadastro',
         error.message || 'Não foi possível criar sua conta. Tente novamente.',
@@ -194,6 +211,70 @@ export default function RegisterScreen() {
             />
           </View>
 
+          {/* Seletor de Tipo de Usuário */}
+          <View style={styles.userTypeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.userTypeButton,
+                styles.userTypeButtonLeft,
+                selectedUserType === 'user' && {
+                  ...styles.userTypeButtonActive,
+                  backgroundColor: getThemeColor(),
+                },
+              ]}
+              onPress={() => {
+                setSelectedUserType('user');
+                setValue('type', 'user');
+                console.log('Tipo selecionado: user');
+              }}
+              disabled={isLoading}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.userTypeButtonText,
+                  selectedUserType === 'user' && styles.userTypeButtonTextActive,
+                ]}
+              >
+                Sou Cliente
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.userTypeButton,
+                styles.userTypeButtonRight,
+                selectedUserType === 'admin' && {
+                  ...styles.userTypeButtonActive,
+                  backgroundColor: getThemeColor(),
+                },
+              ]}
+              onPress={() => {
+                setSelectedUserType('admin');
+                setValue('type', 'admin');
+                console.log('Tipo selecionado: admin');
+              }}
+              disabled={isLoading}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.userTypeButtonText,
+                  selectedUserType === 'admin' && styles.userTypeButtonTextActive,
+                ]}
+              >
+                Sou Admin
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Indicador visual do tipo selecionado */}
+          <View style={styles.typeIndicator}>
+            <Text style={styles.typeIndicatorText}>
+              Cadastrando como: {selectedUserType === 'admin' ? 'Administrador' : 'Cliente'}
+            </Text>
+          </View>
+
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Nome Completo</Text>
@@ -202,7 +283,11 @@ export default function RegisterScreen() {
                 name="name"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.name && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.name && styles.inputError,
+                      !errors.name && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="João Silva"
                     autoCapitalize="words"
                     onBlur={onBlur}
@@ -224,7 +309,11 @@ export default function RegisterScreen() {
                 name="cpf"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.cpf && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.cpf && styles.inputError,
+                      !errors.cpf && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="123.456.789-00"
                     keyboardType="numeric"
                     onBlur={onBlur}
@@ -251,7 +340,11 @@ export default function RegisterScreen() {
                 name="email"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.email && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.email && styles.inputError,
+                      !errors.email && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="seu@email.com"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -275,7 +368,11 @@ export default function RegisterScreen() {
                 name="phoneNumber"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.phoneNumber && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.phoneNumber && styles.inputError,
+                      !errors.phoneNumber && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="(11) 99999-9999"
                     keyboardType="phone-pad"
                     onBlur={onBlur}
@@ -302,7 +399,11 @@ export default function RegisterScreen() {
                 name="address"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.address && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.address && styles.inputError,
+                      !errors.address && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="Rua X, 123 - Cidade"
                     autoCapitalize="sentences"
                     onBlur={onBlur}
@@ -318,46 +419,17 @@ export default function RegisterScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Tipo de Conta</Text>
-              <Controller
-                control={control}
-                name="type"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.radioContainer}>
-                    <TouchableOpacity
-                      style={styles.radioOption}
-                      onPress={() => onChange('CUSTOMER')}
-                      disabled={isLoading}
-                    >
-                      <View style={[styles.radio, value === 'CUSTOMER' && styles.radioSelected]}>
-                        {value === 'CUSTOMER' && <View style={styles.radioInner} />}
-                      </View>
-                      <Text style={styles.radioText}>Cliente</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={styles.radioOption}
-                      onPress={() => onChange('ADMIN')}
-                      disabled={isLoading}
-                    >
-                      <View style={[styles.radio, value === 'ADMIN' && styles.radioSelected]}>
-                        {value === 'ADMIN' && <View style={styles.radioInner} />}
-                      </View>
-                      <Text style={styles.radioText}>Administrador</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
               <Text style={styles.label}>Senha</Text>
               <Controller
                 control={control}
                 name="password"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.password && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.password && styles.inputError,
+                      !errors.password && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="Digite sua senha"
                     secureTextEntry
                     onBlur={onBlur}
@@ -379,7 +451,11 @@ export default function RegisterScreen() {
                 name="confirmPassword"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
-                    style={[styles.input, errors.confirmPassword && styles.inputError]}
+                    style={[
+                      styles.input,
+                      errors.confirmPassword && styles.inputError,
+                      !errors.confirmPassword && { borderColor: getThemeColor() },
+                    ]}
                     placeholder="Digite a senha novamente"
                     secureTextEntry
                     onBlur={onBlur}
@@ -395,13 +471,21 @@ export default function RegisterScreen() {
             </View>
 
             <TouchableOpacity
+              style={[
+                styles.registerButton,
+                { backgroundColor: getThemeColor() },
+                isLoading && styles.registerButtonDisabled,
+              ]}
+              onPress={handleSubmit(handleRegister)}
+              disabled={isLoading}
+              activeOpacity={0.8}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Button title="Cadastrar"
-                onPress={handleSubmit(handleRegister)}
-                disabled={isLoading}/>
+                <Text style={styles.registerButtonText}>
+                  Cadastrar como {selectedUserType === 'admin' ? 'Administrador' : 'Cliente'}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -409,7 +493,9 @@ export default function RegisterScreen() {
               <Text style={styles.footerText}>Já tem uma conta? </Text>
               <Link href="/auth/login" asChild>
                 <TouchableOpacity disabled={isLoading}>
-                  <Text style={styles.linkText}>Faça login</Text>
+                  <Text style={[styles.linkText, { color: getThemeColor() }]}>
+                    Faça login
+                  </Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -480,6 +566,53 @@ const styles = StyleSheet.create({
     height: 120,
     resizeMode: 'contain',
   },
+  userTypeSelector: {
+    flexDirection: 'row',
+    marginBottom: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#ddd',
+  },
+  userTypeButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  userTypeButtonLeft: {
+    borderRightWidth: 1,
+    borderRightColor: '#ddd',
+  },
+  userTypeButtonRight: {
+    borderLeftWidth: 1,
+    borderLeftColor: '#ddd',
+  },
+  userTypeButtonActive: {
+    borderColor: 'transparent',
+  },
+  userTypeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  userTypeButtonTextActive: {
+    color: '#fff',
+  },
+  typeIndicator: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 4,
+  },
+  typeIndicatorText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
   form: {
     width: '100%',
   },
@@ -494,8 +627,8 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 2,
+    borderColor: '#00BCD4',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -510,41 +643,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  radioContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
+  registerButton: {
+    backgroundColor: '#00BCD4',
     borderRadius: 8,
-    paddingVertical: 12,
-  },
-  radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    marginRight: 8,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 10,
   },
-  radioSelected: {
-    borderColor: '#00BCD4',
+  registerButtonDisabled: {
+    opacity: 0.6,
   },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#00BCD4',
-  },
-  radioText: {
-    fontSize: 14,
-    color: '#333',
+  registerButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   footer: {
     flexDirection: 'row',

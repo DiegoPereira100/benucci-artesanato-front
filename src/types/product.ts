@@ -5,6 +5,7 @@ export interface Product {
   price: number;
   image_url: string | null;
   category: string;
+  stock: number;
 }
 
 export interface User {

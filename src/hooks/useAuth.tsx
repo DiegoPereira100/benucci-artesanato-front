@@ -8,7 +8,7 @@ interface AuthContextData {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<User>; // ✅ Agora retorna User
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -32,7 +32,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const isAuth = await authService.isAuthenticated();
       if (isAuth) {
         const userData = await authService.getUser();
-        setUser(userData);
+        if (userData) {
+          // normaliza o tipo salvo (pode vir como 'CUSTOMER' do passado)
+          const normalizedType = (userData.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          if (userData.type !== normalizedType) {
+            const updated = { ...userData, type: normalizedType } as User;
+            await authService.saveUser(updated);
+            setUser(updated);
+          } else {
+            setUser(userData);
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error);
@@ -41,44 +51,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  async function login(credentials: LoginRequest) {
+  async function login(credentials: LoginRequest): Promise<User> {
     try {
       console.log('=== DEBUG LOGIN no useAuth ===');
       console.log('Chamando authService.login...');
       
       const response = await authService.login(credentials);
-      console.log('Response é um JWT token:', typeof response === 'string');
+      console.log('Response do login:', typeof response);
+      
+      let userData: User;
       
       if (typeof response === 'string') {
         // Response é um JWT token - vamos decodificar
         console.log('Decodificando JWT token...');
         
         try {
-          // Garantir que response é string para TypeScript
           const token = response as string;
           
           // Decodifica o payload do JWT (parte do meio)
-          const payload = JSON.parse(atob(token.split('.')[1]));
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(atob(base64));
           console.log('Payload do JWT:', payload);
           
+          // ✅ CORREÇÃO: O backend retorna 'role' com valores 'admin' ou 'customer'
+          // Precisamos mapear para o formato esperado pelo frontend
+          const userRole = payload.role === 'admin' ? 'ADMIN' : 'USER';
+          
           // Cria o objeto user a partir do payload
-          const userData: User = {
+          userData = {
             id: payload.id,
             email: payload.sub, // 'sub' é o email no JWT
-            name: payload.name,
-            type: payload.type,
-            // Propriedades que podem não estar no JWT - definir como null ou string vazia
+            name: payload.name || payload.email, // fallback caso name não exista
+            type: userRole, // ✅ Mapeia 'admin'/'customer' para 'ADMIN'/'USER'
             cpf: payload.cpf || '',
             phoneNumber: payload.phoneNumber || '',
             address: payload.address || '',
-            // Adicione outras propriedades obrigatórias do tipo User aqui se necessário
           };
           
-          console.log('Dados do usuário extraídos:', userData);
+          console.log('✅ Dados do usuário extraídos:', userData);
           setUser(userData);
           
-          // Salvar o token para futuras requisições
-          // Você pode implementar isso no authService se necessário
+          return userData;
           
         } catch (decodeError) {
           console.error('Erro ao decodificar JWT:', decodeError);
@@ -89,7 +103,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Caso seja um objeto com user (fallback)
         console.log('Response é objeto com user');
         const responseObj = response as any;
-        setUser(responseObj.user);
+        const rawUser = responseObj.user as User;
+        // normaliza tipo
+        const normalizedType = (rawUser.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+        userData = { ...rawUser, type: normalizedType } as User;
+        // persiste a versão normalizada
+        try {
+          await authService.saveUser(userData);
+        } catch (e) {
+          console.warn('Falha ao salvar usuário normalizado:', e);
+        }
+        setUser(userData);
+        return userData;
       } else {
         console.log('❌ Formato de response não reconhecido');
         throw new Error('Formato de resposta inválido');
@@ -110,55 +135,72 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Verificar se o registro faz login automático
       if (response.token && response.user) {
         console.log('Registro fez login automático com token');
-        setUser(response.user);
-        // O _layout.tsx vai detectar e redirecionar para home
+        const rawUser = response.user as User;
+        const normalizedType = (rawUser.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+        const normalizedUser = { ...rawUser, type: normalizedType } as User;
+        try {
+          await authService.saveUser(normalizedUser);
+        } catch (e) {
+          console.warn('Falha ao salvar usuário do register:', e);
+        }
+        setUser(normalizedUser);
       } else if (typeof response === 'string') {
         // Se retorna JWT como string (similar ao login)
         console.log('Registro retornou JWT token');
         try {
           const token = response as string;
-          const payload = JSON.parse(atob(token.split('.')[1]));
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(atob(base64));
+          
+          const userRole = (payload.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
           
           const userData: User = {
             id: payload.id,
             email: payload.sub,
-            name: payload.name,
-            type: payload.type,
+            name: payload.name || payload.email,
+            type: userRole,
             cpf: payload.cpf || '',
             phoneNumber: payload.phoneNumber || '',
             address: payload.address || '',
           };
           
+          try {
+            await authService.saveUser(userData);
+          } catch (e) {
+            console.warn('Falha ao salvar usuário decodificado do register:', e);
+          }
           setUser(userData);
-          // O _layout.tsx vai detectar e redirecionar para home
         } catch (decodeError) {
           console.error('Erro ao decodificar JWT do register:', decodeError);
         }
       } else if (response && typeof response === 'object') {
-        // Se retorna diretamente os dados do usuário (como no seu caso)
+        // Se retorna diretamente os dados do usuário
         const responseObj = response as any;
         
         if (responseObj.id && responseObj.email) {
-          console.log('Registro retornou dados do usuário diretamente - fazendo login automático');
-          
+          console.log('Registro retornou dados do usuário diretamente');
+          const userRole = (responseObj.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
           const userData: User = {
             id: responseObj.id,
             email: responseObj.email,
             name: responseObj.name,
-            type: responseObj.type,
+            type: userRole,
             cpf: responseObj.cpf || '',
             phoneNumber: responseObj.phoneNumber || '',
             address: responseObj.address || '',
           };
-          
+          try {
+            await authService.saveUser(userData);
+          } catch (e) {
+            console.warn('Falha ao salvar usuário retornado no register:', e);
+          }
           setUser(userData);
-          // O _layout.tsx vai detectar e redirecionar para home
         } else {
           console.log('Objeto response não contém id e email');
         }
       } else {
-        console.log('Registro não fez login automático - usuário deve fazer login manualmente');
-        // Não setar user - usuário permanece na área de auth
+        console.log('Registro não fez login automático');
       }
       
     } catch (error: any) {
@@ -171,7 +213,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await authService.logout();
       setUser(null);
-      // Deixar o _layout.tsx gerenciar a navegação para /auth/login
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
