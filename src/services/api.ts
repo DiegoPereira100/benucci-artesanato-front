@@ -12,8 +12,8 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
+      
     });
-
     this.api.interceptors.request.use(
       async (config) => {
         const token = await this.getToken();
