@@ -17,18 +17,19 @@ The app connects to our [backend API](https://github.com/GlhermePereira/Benucci-
 ## 📱 Screenshots
 
 <div align="center">
-  <img src="./assets/project-design/SplashScreen.png" alt="Home Screen" width="250"/>
-  <img src="./assets/project-design/Start.png.png" alt="Home Screen" width="250"/>
-  <img src="./assets/project-design/Cadastro.png.png" alt="Home Screen" width="250"/>
-  <img src="./assets/project-design/Login.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/Start.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/Cadastro.png" alt="Home Screen" width="250"/>
+   <img src="./assets/project-design/Login.png" alt="Home Screen" width="250"/>
 </div>
-
 <div align="center">
   <img src="./assets/project-design/Home.png" alt="Home Screen" width="250"/>
   <img src="./assets/project-design/Produto.png" alt="Home Screen" width="250"/>
-  <img src="./assets/project-design/Carrinho.png" alt="Home Screen" width="250"/>
+   <img src="./assets/project-design/Carrinho.png" alt="Home Screen" width="250"/>
+</div>
+<div align="center">
   <img src="./assets/project-design/Perfil.png" alt="Home Screen" width="250"/>
   <img src="./assets/project-design/Favoritos.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/SplashScreen.png" alt="Home Screen" width="250"/>
 </div>
 
 > **Note**: Screenshots showcase the app's intuitive interface and smooth user experience across different screens.
