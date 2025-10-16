@@ -22,7 +22,7 @@ function mapPayloadToUser(payload) {
 
 function getRedirect(user) {
   if (!user) return 'NO_REDIRECT';
-  return user.type === 'ADMIN' ? '/admin/dashboard' : '/(tabs)/products';
+  return user.type === 'ADMIN' ? '/(tabs)/admin' : '/(tabs)/products';
 }
 
 const cases = [

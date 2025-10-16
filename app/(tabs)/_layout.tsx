@@ -4,11 +4,12 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, StyleSheet } from 'react-native';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/hooks/useAuth';
 
 // Componente para o badge do carrinho
 function TabBarBadge({ count }: { count: number }) {
   if (count === 0) return null;
-  
+
   return (
     <View style={styles.badge}>
       <Text style={styles.badgeText}>
@@ -20,6 +21,7 @@ function TabBarBadge({ count }: { count: number }) {
 
 export default function TabLayout() {
   const { totalItems } = useCart();
+  const { user } = useAuth();
 
   return (
     <Tabs
@@ -31,6 +33,13 @@ export default function TabLayout() {
           paddingBottom: 8,
           paddingTop: 8,
         },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+        tabBarIconStyle: {
+          marginBottom: -4,
+        },
         headerStyle: {
           backgroundColor: '#2196F3',
         },
@@ -40,17 +49,6 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          tabBarLabel: 'Início',
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
-      />
 
       {/* explore tab removed: using products as the catalog screen */}
 
@@ -63,7 +61,7 @@ export default function TabLayout() {
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <View>
-              <Ionicons name="cart" size={size} color={color} />
+              <Ionicons name="cart-outline" size={size} color={color} />
               <TabBarBadge count={totalItems} />
             </View>
           ),
@@ -77,7 +75,7 @@ export default function TabLayout() {
           tabBarLabel: 'Perfil',
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />
@@ -89,7 +87,21 @@ export default function TabLayout() {
           tabBarLabel: 'Produtos',
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pricetag" size={size} color={color} />
+            <Ionicons name="storefront-outline" size={size + 2} color={color} />
+          ),
+        }}
+      />
+
+      {/* Admin tab - only register it for admin users so it doesn't appear at all for regular users */}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Dashboard',
+          tabBarLabel: 'Dashboard',
+          headerShown: false,
+          href: user?.type === 'ADMIN' ? '/admin' : null, // Oculta a tab se não for admin
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield-checkmark-outline" size={size + 2} color={color} />
           ),
         }}
       />

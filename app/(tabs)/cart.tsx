@@ -8,6 +8,9 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
+import toast from '../../src/utils/toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +20,8 @@ import { useCart, CartItem } from '@/contexts/CartContext';
 export default function CartScreen() {
   const router = useRouter();
   const { cartItems, updateItemQuantity, removeFromCart, cartTotal, totalItems } = useCart();
+  const [confirmVisible, setConfirmVisible] = React.useState(false);
+  const [confirmTarget, setConfirmTarget] = React.useState<{ id: number; name: string } | null>(null);
 
   const handleIncrement = (productId: number, currentQuantity: number) => {
     updateItemQuantity(productId, currentQuantity + 1);
@@ -29,23 +34,13 @@ export default function CartScreen() {
   };
 
   const handleRemove = (productId: number, productName: string) => {
-    Alert.alert(
-      'Remover item',
-      `Deseja remover "${productName}" do carrinho?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Remover',
-          style: 'destructive',
-          onPress: () => removeFromCart(productId),
-        },
-      ]
-    );
+    setConfirmTarget({ id: productId, name: productName });
+    setConfirmVisible(true);
   };
 
   const handleCheckout = () => {
     if (cartItems.length === 0) {
-      Alert.alert('Carrinho vazio', 'Adicione produtos ao carrinho antes de finalizar a compra.');
+  toast.showInfo('Carrinho vazio', 'Adicione produtos ao carrinho antes de finalizar a compra.');
       return;
     }
 
@@ -55,11 +50,7 @@ export default function CartScreen() {
       total: cartTotal,
     });
 
-    Alert.alert(
-      'Checkout',
-      `Total: R$ ${cartTotal.toFixed(2).replace('.', ',')}\n\nEm breve você será redirecionado para a tela de pagamento.`,
-      [{ text: 'OK' }]
-    );
+  toast.showInfo('Checkout', `Total: R$ ${cartTotal.toFixed(2).replace('.', ',')} — Em breve redirecionaremos para pagamento.`);
   };
 
   const renderCartItem = ({ item }: { item: CartItem }) => {
@@ -228,6 +219,15 @@ export default function CartScreen() {
       />
 
       {renderFooter()}
+      <ConfirmModal
+        visible={confirmVisible}
+        title="Remover item"
+        message={confirmTarget ? `Deseja remover "${confirmTarget.name}" do carrinho?` : ''}
+        confirmText="Remover"
+        cancelText="Cancelar"
+        onCancel={() => { setConfirmVisible(false); setConfirmTarget(null); }}
+  onConfirm={() => { if (confirmTarget) { removeFromCart(confirmTarget.id); setConfirmVisible(false); setConfirmTarget(null); toast.showSuccess('Removido', `"${confirmTarget.name}" removido do carrinho.`); } }}
+      />
     </SafeAreaView>
   );
 }

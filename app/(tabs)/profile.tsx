@@ -2,6 +2,9 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import authService from '../../src/services/auth';
+import { router } from 'expo-router';
+import Toast from 'react-native-toast-message';
+import toast from '../../src/utils/toast';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -30,23 +33,23 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Sair da Conta</Text>
-      </TouchableOpacity>
-
-      {/* Temporary debug button - remove in production */}
       <TouchableOpacity
-        style={[styles.logoutButton, { marginTop: 8 }]}
+        style={styles.logoutButton}
         onPress={async () => {
           try {
-            await authService.debugToken();
+            await logout();
+            toast.showInfo('Desconectado', 'Você foi desconectado com sucesso.');
+            router.replace('/');
           } catch (e) {
-            console.error('debugToken button error', e);
+            console.error('Erro ao deslogar:', e);
+            toast.showError('Erro', 'Falha ao deslogar. Tente novamente.');
           }
         }}
       >
-        <Text style={[styles.logoutText, { color: '#2196F3' }]}>Debug token</Text>
+        <Text style={styles.logoutText}>Sair da Conta</Text>
       </TouchableOpacity>
+
+      {/* debug button removed */}
     </View>
   );
 }

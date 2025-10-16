@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
+import toast from '../../src/utils/toast';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -27,12 +29,12 @@ type UserType = 'user' | 'admin';
 // Função para validar CPF
 const validateCPF = (cpf: string) => {
   cpf = cpf.replace(/[^\d]/g, '');
-  
+
   if (cpf.length !== 11) return false;
-  
+
   // Elimina CPFs conhecidos como inválidos
   if (/^(\d)\1+$/.test(cpf)) return false;
-  
+
   // Validação do primeiro dígito
   let sum = 0;
   for (let i = 0; i < 9; i++) {
@@ -41,7 +43,7 @@ const validateCPF = (cpf: string) => {
   let remainder = (sum * 10) % 11;
   if (remainder === 10) remainder = 0;
   if (remainder !== parseInt(cpf.charAt(9))) return false;
-  
+
   // Validação do segundo dígito
   sum = 0;
   for (let i = 0; i < 10; i++) {
@@ -50,7 +52,7 @@ const validateCPF = (cpf: string) => {
   remainder = (sum * 10) % 11;
   if (remainder === 10) remainder = 0;
   if (remainder !== parseInt(cpf.charAt(10))) return false;
-  
+
   return true;
 };
 
@@ -145,8 +147,8 @@ export default function RegisterScreen() {
       console.log('=== INICIANDO CADASTRO ===');
       console.log('Tipo de usuário selecionado:', selectedUserType);
       setIsLoading(true);
-      
-     const { confirmPassword, ...rest } = data;
+
+      const { confirmPassword, ...rest } = data;
 
       // Cria objeto para envio ao backend, convertendo type para maiúsculo
       const registerPayload = {
@@ -164,21 +166,20 @@ export default function RegisterScreen() {
       // Aguarda o contexto atualizar (se o registro fizer login automático)
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      if (user) {
-        // Se o contexto já tiver o usuário, redireciona conforme role
+      if (user && user.type) {
         redirectAfterAuth(user);
       } else {
-        // Caso o backend não tenha feito login automático, vai para a tela de login
-        router.replace('/auth/login');
+        // Fallback caso o contexto não tenha atualizado
+        if (selectedUserType === 'admin') {
+          router.replace('/(tabs)/admin');
+        } else {
+          router.replace('/(tabs)/products');
+        }
       }
     } catch (error: any) {
       console.error('=== ERRO NO CADASTRO ===');
       console.error('Erro:', error.message);
-      Alert.alert(
-        'Erro no Cadastro',
-        error.message || 'Não foi possível criar sua conta. Tente novamente.',
-        [{ text: 'OK' }]
-      );
+  toast.showError('Erro no Cadastro', error.message || 'Não foi possível criar sua conta. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -190,12 +191,12 @@ export default function RegisterScreen() {
         style={styles.waveTop}
         source={require('@/assets/images/wavesbg.png')}
       />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >

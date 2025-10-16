@@ -68,9 +68,9 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
+    <AuthProvider children={undefined}>
       {/* ← ADICIONAR O CARTPROVIDER AQUI */}
-      <CartProvider>
+      <CartProvider children={undefined}>
         <InitialLayout />
       </CartProvider>
       {/* ← FIM DO CARTPROVIDER */}

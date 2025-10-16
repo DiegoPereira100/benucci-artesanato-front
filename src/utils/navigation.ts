@@ -7,7 +7,8 @@ export function redirectAfterAuth(user?: User | null) {
 
   // user.type já é normalizado para 'USER' | 'ADMIN' no useAuth/service
   if (user.type === 'ADMIN') {
-    router.replace('/admin/dashboard');
+    // Send admins to the admin screen inside the tabs group so the bottom Tabs are shown
+    router.replace('/(tabs)/admin');
   } else {
     router.replace('/(tabs)/products');
   }

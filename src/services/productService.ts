@@ -37,6 +37,19 @@ export const productService = {
   },
 
   /**
+   * Buscar ProductDTO cru (inclui category.id) - para edição
+   */
+  getProductDTO: async (id: number): Promise<ProductDTO> => {
+    try {
+      const response = await ApiService.instance.get<ProductDTO>(`/products/${id}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('productService.getProductDTO -> error', error?.response ?? error);
+      throw error;
+    }
+  },
+
+  /**
    * Criar produto (requer autenticação de admin)
    */
   createProduct: async (formData: CreateProductFormData): Promise<ProductDTO> => {
@@ -82,6 +95,32 @@ export const productService = {
         err.status = null;
         throw err;
       }
+    }
+  },
+  /**
+   * Atualizar produto (requer autenticação ADMIN)
+   */
+  updateProduct: async (id: number, productData: any): Promise<any> => {
+    try {
+      console.log('productService.updateProduct -> updating', id, productData);
+      const response = await ApiService.instance.put(`/products/${id}`, productData);
+      return response.data;
+    } catch (error: any) {
+      console.error('productService.updateProduct -> error', error?.response ?? error);
+      throw error;
+    }
+  },
+
+  /**
+   * Deletar produto (requer autenticação ADMIN)
+   */
+  deleteProduct: async (id: number): Promise<void> => {
+    try {
+      console.log('productService.deleteProduct -> deleting', id);
+      await ApiService.instance.delete(`/products/${id}`);
+    } catch (error: any) {
+      console.error('productService.deleteProduct -> error', error?.response ?? error);
+      throw error;
     }
   },
 };

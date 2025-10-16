@@ -8,11 +8,13 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Alert,
   Dimensions,
   Image,
   Platform,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
+import toast from '../../src/utils/toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Product } from '@/types/product';
 import { Ionicons } from '@expo/vector-icons';
@@ -110,76 +112,21 @@ export default function ExploreScreen() {
       // Tratamento específico para erro 403
       if (error?.response?.status === 403) {
         setError('Acesso negado. Faça login para ver os produtos.');
-        Alert.alert(
-          'Autenticação necessária',
-          'Você precisa estar logado para visualizar os produtos.',
-          [
-            { 
-              text: 'Fazer Login', 
-              onPress: () => router.push('/(auth)/login') 
-            },
-            { 
-              text: 'Cancelar', 
-              style: 'cancel' 
-            }
-          ]
-        );
+  toast.showInfo('Autenticação necessária', 'Você precisa estar logado para visualizar os produtos.');
+        router.push('/(auth)/login');
       } else if (error?.response?.status === 401) {
         setError('Sessão expirada. Faça login novamente.');
-        Alert.alert(
-          'Sessão Expirada',
-          'Sua sessão expirou. Por favor, faça login novamente.',
-          [
-            { 
-              text: 'Fazer Login', 
-              onPress: () => router.push('/(auth)/login') 
-            }
-          ]
-        );
+  toast.showInfo('Sessão Expirada', 'Sua sessão expirou. Por favor, faça login novamente.');
+        router.push('/(auth)/login');
       } else if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
         setError('Tempo de conexão esgotado. Verifique sua internet.');
-        Alert.alert(
-          'Erro de Conexão',
-          'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.',
-          [
-            { 
-              text: 'Tentar novamente', 
-              onPress: () => loadInitialData() 
-            },
-            { 
-              text: 'OK', 
-              style: 'cancel' 
-            }
-          ]
-        );
+  toast.showError('Erro de Conexão', 'Não foi possível conectar ao servidor. Verifique sua conexão.');
       } else if (error?.message === 'Network Error') {
         setError('Erro de rede. Verifique sua conexão.');
-        Alert.alert(
-          'Sem Conexão',
-          'Não foi possível conectar ao servidor. Verifique sua conexão com a internet.',
-          [
-            { 
-              text: 'Tentar novamente', 
-              onPress: () => loadInitialData() 
-            }
-          ]
-        );
+  toast.showError('Sem Conexão', 'Não foi possível conectar ao servidor.');
       } else {
         setError('Erro ao carregar produtos. Tente novamente.');
-        Alert.alert(
-          'Erro',
-          'Não foi possível carregar os produtos. Tente novamente mais tarde.',
-          [
-            { 
-              text: 'Tentar novamente', 
-              onPress: () => loadInitialData() 
-            },
-            { 
-              text: 'OK', 
-              style: 'cancel' 
-            }
-          ]
-        );
+  toast.showError('Erro', 'Não foi possível carregar os produtos. Tente novamente mais tarde.');
       }
       
       // Fallback para produtos mockados em caso de erro (opcional)
@@ -199,12 +146,10 @@ export default function ExploreScreen() {
       console.error('Erro ao atualizar produtos:', error);
       
       if (error?.response?.status === 403) {
-        Alert.alert(
-          'Acesso Negado',
-          'Você precisa estar logado para visualizar os produtos.'
-        );
+  toast.showInfo('Acesso Negado', 'Você precisa estar logado para visualizar os produtos.');
+        router.push('/(auth)/login');
       } else {
-        Alert.alert('Erro', 'Não foi possível atualizar os produtos');
+  toast.showError('Erro', 'Não foi possível atualizar os produtos');
       }
     } finally {
       setRefreshing(false);
@@ -226,20 +171,13 @@ export default function ExploreScreen() {
   const handleAddToCart = (product: Product, quantity: number) => {
     // Verificar se há estoque suficiente
     if (quantity > product.stock) {
-      Alert.alert(
-        'Estoque insuficiente',
-        `Disponível apenas ${product.stock} unidade(s) deste produto.`
-      );
+      toast.showError('Estoque insuficiente', `Disponível apenas ${product.stock} unidade(s) deste produto.`);
       return;
     }
 
     addToCart(product, quantity);
     setModalVisible(false);
-    Alert.alert(
-      'Sucesso!',
-      `${quantity}x ${product.name} adicionado ao carrinho`,
-      [{ text: 'OK' }]
-    );
+    toast.showSuccess('Adicionado ao carrinho', `${quantity}x ${product.name} adicionado ao carrinho`);
   };
 
   const getUserInitials = (name: string) => {
