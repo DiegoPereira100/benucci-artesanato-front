@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { CartProvider } from '@/contexts/CartContext'; // ← ADICIONAR ESTA LINHA
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { router, useSegments, useRootNavigationState } from 'expo-router';
 
@@ -67,8 +68,12 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <InitialLayout />
+    <AuthProvider children={undefined}>
+      {/* ← ADICIONAR O CARTPROVIDER AQUI */}
+      <CartProvider children={undefined}>
+        <InitialLayout />
+      </CartProvider>
+      {/* ← FIM DO CARTPROVIDER */}
     </AuthProvider>
   );
 }

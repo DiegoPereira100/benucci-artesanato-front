@@ -12,13 +12,17 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
+import toast from '../../src/utils/toast';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
+import authService from '../../src/services/auth';
+import { redirectAfterAuth } from '../../src/utils/navigation';
+import { Button } from '@/components/ui/Button';
 
 // Esquema de validação
 const loginSchema = z.object({
@@ -65,11 +69,7 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');
       console.error('Erro:', error.message);
-      Alert.alert(
-        'Erro no Login',
-        error.message || 'Não foi possível fazer login. Tente novamente.',
-        [{ text: 'OK' }]
-      );
+  toast.showError('Erro no Login', error.message || 'Não foi possível fazer login. Tente novamente.');
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
+import authService from '../../src/services/auth';
+import { router } from 'expo-router';
+import Toast from 'react-native-toast-message';
+import toast from '../../src/utils/toast';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -29,9 +33,23 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+      <TouchableOpacity
+        style={styles.logoutButton}
+        onPress={async () => {
+          try {
+            await logout();
+            toast.showInfo('Desconectado', 'Você foi desconectado com sucesso.');
+            router.replace('/');
+          } catch (e) {
+            console.error('Erro ao deslogar:', e);
+            toast.showError('Erro', 'Falha ao deslogar. Tente novamente.');
+          }
+        }}
+      >
         <Text style={styles.logoutText}>Sair da Conta</Text>
       </TouchableOpacity>
+
+      {/* debug button removed */}
     </View>
   );
 }
