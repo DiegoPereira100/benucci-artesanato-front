@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import authService from '../services/auth';
 import { User, LoginRequest, RegisterRequest } from '../types/auth';
+import { API_BASE_URL } from '@env';
 
 interface AuthContextData {
   user: User | null;
@@ -51,7 +52,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  async function login(credentials: LoginRequest): Promise<User> {
+  async function login(credentials: LoginRequest) {
+    console.log(API_BASE_URL)
     try {
       console.log('=== DEBUG LOGIN no useAuth ===');
       console.log('Chamando authService.login...');

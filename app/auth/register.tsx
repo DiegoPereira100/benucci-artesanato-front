@@ -148,34 +148,28 @@ export default function RegisterScreen() {
       console.log('Tipo de usuário selecionado:', selectedUserType);
       setIsLoading(true);
 
-      const { confirmPassword, ...rest } = data;
+      const { confirmPassword, ...registerData } = data;
+      registerData.cpf = registerData.cpf.replace(/\D/g, '');
+      registerData.phoneNumber = registerData.phoneNumber.replace(/\D/g, '');
 
-      // Cria objeto para envio ao backend, convertendo type para maiúsculo
-      const registerPayload = {
-        ...rest,
-        cpf: rest.cpf.replace(/\D/g, ''),
-        phoneNumber: rest.phoneNumber.replace(/\D/g, ''),
-        type: (selectedUserType === 'admin' ? 'ADMIN' : 'USER') as 'ADMIN' | 'USER',
-      };
+      await register(registerData);
 
-      console.log('Dados enviados para o backend:', registerPayload);
-      console.log('Campo type sendo enviado:', registerPayload.type);
-
-      await register(registerPayload);
-
-      // Aguarda o contexto atualizar (se o registro fizer login automático)
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      if (user && user.type) {
-        redirectAfterAuth(user);
-      } else {
-        // Fallback caso o contexto não tenha atualizado
-        if (selectedUserType === 'admin') {
-          router.replace('/(tabs)/admin');
-        } else {
-          router.replace('/(tabs)/products');
-        }
-      }
+      Alert.alert(
+        'Cadastro Realizado!',
+        'Sua conta foi criada com sucesso.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setTimeout(() => {
+                if (!user) {
+                  router.replace('/auth/login');
+                }
+              }, 500);
+            }
+          }
+        ]
+      );
     } catch (error: any) {
       console.error('=== ERRO NO CADASTRO ===');
       console.error('Erro:', error.message);
@@ -420,6 +414,39 @@ export default function RegisterScreen() {
             </View>
 
             <View style={styles.inputContainer}>
+              <Text style={styles.label}>Tipo de Conta</Text>
+              <Controller
+                control={control}
+                name="type"
+                render={({ field: { onChange, value } }) => (
+                  <View style={styles.radioContainer}>
+                    <TouchableOpacity
+                      style={styles.radioOption}
+                      onPress={() => onChange('CUSTOMER')}
+                      disabled={isLoading}
+                    >
+                      <View style={[styles.radio, value === 'CUSTOMER' && styles.radioSelected]}>
+                        {value === 'CUSTOMER' && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={styles.radioText}>Cliente</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.radioOption}
+                      onPress={() => onChange('ADMIN')}
+                      disabled={isLoading}
+                    >
+                      <View style={[styles.radio, value === 'ADMIN' && styles.radioSelected]}>
+                        {value === 'ADMIN' && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={styles.radioText}>Administrador</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
               <Text style={styles.label}>Senha</Text>
               <Controller
                 control={control}
@@ -471,24 +498,23 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.registerButton,
-                { backgroundColor: getThemeColor() },
-                isLoading && styles.registerButtonDisabled,
-              ]}
-              onPress={handleSubmit(handleRegister)}
-              disabled={isLoading}
-              activeOpacity={0.8}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.registerButtonText}>
-                  Cadastrar como {selectedUserType === 'admin' ? 'Administrador' : 'Cliente'}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {isLoading ? (
+              <View style={{
+                backgroundColor: '#00BCD4',
+                padding: 16,
+                borderRadius: 8,
+                alignItems: 'center',
+                marginTop: 20,
+              }}>
+                <ActivityIndicator color="#fff" />
+              </View>
+            ) : (
+              <Button
+                title="Cadastrar"
+                onPress={handleSubmit(handleRegister)}
+                disabled={isLoading}
+              />
+            )}
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Já tem uma conta? </Text>

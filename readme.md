@@ -14,6 +14,26 @@ Benucci Artesanato Frontend is a cross-platform mobile application built with Re
 
 The app connects to our [backend API](https://github.com/GlhermePereira/Benucci-Artesanato) to provide real-time product information, inventory management, and seamless user experience.
 
+## 📱 Screenshots
+
+<div align="center">
+  <img src="./assets/project-design/Start.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/Cadastro.png" alt="Home Screen" width="250"/>
+   <img src="./assets/project-design/Login.png" alt="Home Screen" width="250"/>
+</div>
+<div align="center">
+  <img src="./assets/project-design/Home.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/Produto.png" alt="Home Screen" width="250"/>
+   <img src="./assets/project-design/Carrinho.png" alt="Home Screen" width="250"/>
+</div>
+<div align="center">
+  <img src="./assets/project-design/Perfil.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/Favoritos.png" alt="Home Screen" width="250"/>
+  <img src="./assets/project-design/SplashScreen.png" alt="Home Screen" width="250"/>
+</div>
+
+> **Note**: Screenshots showcase the app's intuitive interface and smooth user experience across different screens.
+
 ## Problem Statement
 
 Traditional artisan businesses face significant challenges in the digital marketplace:
@@ -62,6 +82,7 @@ Our mobile application addresses these challenges by providing:
 │   ├── _layout.tsx     # Root layout
 │   └── index.tsx       # App entry point
 ├── assets/             # Static assets (images, fonts, icons)
+│   └── screenshots/    # App screenshots for documentation
 ├── src/                # Source code
 │   ├── components/     # Reusable UI components
 │   │   ├── forms/      # Form-specific components

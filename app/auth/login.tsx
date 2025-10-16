@@ -57,19 +57,15 @@ export default function LoginScreen() {
       console.log('=== INICIANDO LOGIN ===');
       console.log('Dados do login:', data);
       setIsLoading(true);
-      // chama o login e obtém o usuário retornado
-      const user = await login(data);
-      console.log('=== LOGIN CONCLUÍDO ===', user);
 
-      // pequena espera para garantir que estado/contexto foi atualizado
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await login(data);
+      console.log('=== LOGIN CONCLUÍDO ===');
 
-      // DEBUG: inspeciona token salvo e decodifica payload (temporário)
-      // debugToken removed
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // redireciona conforme role/type (utilitário centralizado)
-      redirectAfterAuth(user);
-      
+      console.log('Tentando navegação manual como fallback...');
+      router.replace('/(tabs)/home');
+
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');
       console.error('Erro:', error.message);
@@ -85,12 +81,12 @@ export default function LoginScreen() {
         style={styles.waveTop}
         source={require('@/assets/images/wavesbg.png')}
       />
-      
-      <KeyboardAvoidingView 
+
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
@@ -148,16 +144,23 @@ export default function LoginScreen() {
                 <Text style={styles.errorText}>{errors.password.message}</Text>
               )}
             </View>
-            <TouchableOpacity
-            >
-              {isLoading ? (
+            {isLoading ? (
+              <View style={{
+                backgroundColor: '#00BCD4',
+                padding: 16,
+                borderRadius: 8,
+                alignItems: 'center',
+                marginTop: 20,
+              }}>
                 <ActivityIndicator color="#fff" />
-              ) : (
-                <Button title="Entrar" 
+              </View>
+            ) : (
+              <Button
+                title="Entrar"
                 onPress={handleSubmit(handleLogin)}
-                disabled={isLoading}/>
-              )}
-            </TouchableOpacity>
+                disabled={isLoading}
+              />
+            )}
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Não tem uma conta? </Text>

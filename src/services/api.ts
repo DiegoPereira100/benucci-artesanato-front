@@ -17,18 +17,8 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
+      
     });
-
-    // API pública (sem autenticação para produtos)
-    this.publicApi = axios.create({
-      baseURL: API_BASE_URL, 
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Interceptor para adicionar token nas requisições autenticadas
     this.api.interceptors.request.use(
       async (config) => {
         const token = await this.getToken();
