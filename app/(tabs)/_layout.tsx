@@ -2,7 +2,8 @@
 
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -22,17 +23,31 @@ function TabBarBadge({ count }: { count: number }) {
 export default function TabLayout() {
   const { totalItems } = useCart();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const bottomInset = insets.bottom || 0;
+
+  // Adjustments to make tab bar visible above soft navigation buttons and on web
+  const computedTabBarStyle: any = {
+    height: 60 + bottomInset,
+    paddingBottom: Math.max(8, bottomInset),
+    paddingTop: 8,
+    // Ensure tab bar sits above floating elements / device nav
+    zIndex: 50,
+    elevation: 50,
+    // Keep background and border so it's clearly separated from content
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    // On web the tabbar may be clipped; make overflow visible
+    overflow: 'visible',
+  };
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#2196F3',
         tabBarInactiveTintColor: '#666',
-        tabBarStyle: {
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
+        tabBarStyle: computedTabBarStyle,
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',

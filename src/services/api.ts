@@ -19,6 +19,14 @@ class ApiService {
       },
       
     });
+    // Public API client (no auth headers/interceptors) — used for public endpoints when token unauthenticated
+    this.publicApi = axios.create({
+      baseURL: API_BASE_URL,
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
     this.api.interceptors.request.use(
       async (config) => {
         const token = await this.getToken();
@@ -228,7 +236,7 @@ class ApiService {
         description: dto.description,
         price: dto.price,
         category: dto.category.name,
-        image_url: dto.imageUrl,
+        image_url: this.resolveImageUrl(dto.imageUrl),
         stock: dto.stock,
       }));
     } catch (error: any) {
@@ -246,7 +254,7 @@ class ApiService {
             description: dto.description,
             price: dto.price,
             category: dto.category.name,
-            image_url: dto.imageUrl,
+            image_url: this.resolveImageUrl(dto.imageUrl),
             stock: dto.stock,
           }));
         } catch (publicError) {
@@ -277,7 +285,7 @@ class ApiService {
         description: dto.description,
         price: dto.price,
         category: dto.category.name,
-        image_url: dto.imageUrl,
+        image_url: this.resolveImageUrl(dto.imageUrl),
         stock: dto.stock,
       };
     } catch (error: any) {
@@ -292,7 +300,7 @@ class ApiService {
             description: dto.description,
             price: dto.price,
             category: dto.category.name,
-            image_url: dto.imageUrl,
+            image_url: this.resolveImageUrl(dto.imageUrl),
             stock: dto.stock,
           };
         } catch (publicError) {
@@ -339,6 +347,28 @@ class ApiService {
       }
       throw error;
     }
+  }
+
+  private resolveImageUrl(imageUrl?: string | null): string | null {
+    if (!imageUrl) {
+      return null;
+    }
+
+    const trimmed = imageUrl.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    const base = (API_BASE_URL || '').replace(/\/$/, '');
+    if (trimmed.startsWith('/')) {
+      return `${base}${trimmed}`;
+    }
+
+    return `${base}/${trimmed}`;
   }
 
   // ========================================
@@ -429,7 +459,7 @@ export interface CreateProductRequest {
   description: string;
   price: number;
   stock: number;
-  imageUrl: string;
+  imageUrl: string | null;
   category: {
     id: number;
     name: string;
@@ -445,7 +475,9 @@ export interface OrderItemDTO {
 export interface OrderRequestDTO {
   userId: number;
   items: OrderItemDTO[];
-  shippingAddress: string;
+  deliveryType: string;
+  deliveryAddress: string;
+  paymentMethod: string;
 }
 
 export interface OrderResponseDTO {

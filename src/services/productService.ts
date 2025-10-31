@@ -3,12 +3,17 @@
 import ApiService, { ProductDTO, CategoryDTO, CreateCategoryRequest } from './api';
 import { Product } from '@/types/product';
 
-export interface CreateProductFormData {
+export type ProductImageFile =
+  | { uri: string; name: string; type: string }
+  | { file: File; name: string; type: string };
+
+export interface CreateProductPayload {
   name: string;
   description: string;
   price: number;
   stock: number;
-  imageUrl: string;
+  imageUrl: string | null;
+  imageFile?: ProductImageFile | null;
   categoryName: string;
   categoryId: number;
 }
@@ -52,7 +57,7 @@ export const productService = {
   /**
    * Criar produto (requer autenticação de admin)
    */
-  createProduct: async (formData: CreateProductFormData): Promise<ProductDTO> => {
+  createProduct: async (formData: CreateProductPayload): Promise<ProductDTO> => {
     try {
       console.log('productService.createProduct -> iniciando criação de produto...', formData);
 
@@ -61,7 +66,7 @@ export const productService = {
         description: formData.description.trim(),
         price: Number(formData.price),
         stock: Number(formData.stock),
-        imageUrl: formData.imageUrl.trim(),
+        imageUrl: formData.imageFile ? null : (formData.imageUrl ?? '').trim(),
         category: {
           id: Number(formData.categoryId),
           name: formData.categoryName.trim(),
@@ -70,6 +75,25 @@ export const productService = {
       };
 
       console.log('productService.createProduct -> dados formatados para API:', productData);
+
+      if (formData.imageFile) {
+        const multipartData = new FormData();
+        multipartData.append('product', JSON.stringify(productData));
+        if ('file' in formData.imageFile) {
+          multipartData.append('imageFile', formData.imageFile.file, formData.imageFile.name);
+        } else {
+          multipartData.append('imageFile', {
+            uri: formData.imageFile.uri,
+            name: formData.imageFile.name,
+            type: formData.imageFile.type,
+          } as any);
+        }
+
+        const response = await ApiService.instance.post<ProductDTO>('/products', multipartData);
+
+        console.log('productService.createProduct -> produto criado via upload!', response.data);
+        return response.data as ProductDTO;
+      }
 
       const createdProduct = await ApiService.createProduct(productData);
 
@@ -117,9 +141,29 @@ export const productService = {
   deleteProduct: async (id: number): Promise<void> => {
     try {
       console.log('productService.deleteProduct -> deleting', id);
-      await ApiService.instance.delete(`/products/${id}`);
+      // log full endpoint for debugging
+      const url = `/products/${id}`;
+      console.log('productService.deleteProduct -> calling DELETE', url);
+      try {
+        // attempt to read the Authorization header that will be sent (masked)
+        const header = (ApiService.instance.defaults.headers as any)?.Authorization || (ApiService.instance.defaults.headers?.common as any)?.Authorization;
+        if (header) {
+          const hStr = String(header);
+          console.log('productService.deleteProduct -> Authorization header (masked):', hStr.slice(0, 12) + '...');
+        } else {
+          console.log('productService.deleteProduct -> Authorization header not set on axios defaults');
+        }
+      } catch (hErr) {
+        console.warn('productService.deleteProduct -> could not read Authorization header', hErr);
+      }
+
+      const resp = await ApiService.instance.delete(url);
+      console.log('productService.deleteProduct -> delete response status:', resp?.status);
     } catch (error: any) {
       console.error('productService.deleteProduct -> error', error?.response ?? error);
+      if (error?.response) {
+        console.error('productService.deleteProduct -> response body:', error.response.data);
+      }
       throw error;
     }
   },

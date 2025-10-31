@@ -64,7 +64,7 @@ export default function LoginScreen() {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       console.log('Tentando navegação manual como fallback...');
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)/products');
 
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');

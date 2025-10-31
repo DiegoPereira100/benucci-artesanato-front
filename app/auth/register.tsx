@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import Toast from 'react-native-toast-message';
 import toast from '../../src/utils/toast';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
@@ -20,8 +19,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
-import { redirectAfterAuth } from '../../src/utils/navigation';
 import { Button } from '@/components/ui/Button';
+import { AddressParts, sanitizeAddressParts, serializeAddress, formatZipCode } from '../../src/utils/address';
+import { RegisterRequest } from '@/types/auth';
 
 // Tipos de usuário - ajustado para corresponder ao backend
 type UserType = 'user' | 'admin';
@@ -38,25 +38,42 @@ const validateCPF = (cpf: string) => {
   // Validação do primeiro dígito
   let sum = 0;
   for (let i = 0; i < 9; i++) {
-    sum += parseInt(cpf.charAt(i)) * (10 - i);
+    sum += parseInt(cpf.charAt(i), 10) * (10 - i);
   }
   let remainder = (sum * 10) % 11;
   if (remainder === 10) remainder = 0;
-  if (remainder !== parseInt(cpf.charAt(9))) return false;
+  if (remainder !== parseInt(cpf.charAt(9), 10)) return false;
 
   // Validação do segundo dígito
   sum = 0;
   for (let i = 0; i < 10; i++) {
-    sum += parseInt(cpf.charAt(i)) * (11 - i);
+    sum += parseInt(cpf.charAt(i), 10) * (11 - i);
   }
   remainder = (sum * 10) % 11;
   if (remainder === 10) remainder = 0;
-  if (remainder !== parseInt(cpf.charAt(10))) return false;
+  if (remainder !== parseInt(cpf.charAt(10), 10)) return false;
 
   return true;
 };
 
 // Esquema de validação - ajustado para usar lowercase
+const addressSchema = z.object({
+  street: z.string().min(1, 'Rua é obrigatória'),
+  number: z.string().min(1, 'Número é obrigatório'),
+  complement: z
+    .string()
+    .optional()
+    .or(z.literal('')),
+  neighborhood: z.string().min(1, 'Bairro é obrigatório'),
+  city: z.string().min(1, 'Cidade é obrigatória'),
+  state: z
+    .string()
+    .regex(/^[A-Za-z]{2}$/, 'UF deve ter 2 letras'),
+  zipCode: z
+    .string()
+    .regex(/^\d{8}$/, 'CEP deve conter 8 dígitos'),
+});
+
 const registerSchema = z.object({
   name: z.string()
     .min(1, 'Nome é obrigatório')
@@ -76,9 +93,7 @@ const registerSchema = z.object({
   phoneNumber: z.string()
     .min(1, 'Telefone é obrigatório')
     .regex(/^\d{10,11}$/, 'Telefone deve ter 10 ou 11 dígitos'),
-  address: z.string()
-    .min(1, 'Endereço é obrigatório')
-    .min(5, 'Endereço deve ter no mínimo 5 caracteres'),
+  address: addressSchema,
   type: z.enum(['user', 'admin']), // Mudado para lowercase
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'As senhas não coincidem',
@@ -97,7 +112,6 @@ export default function RegisterScreen() {
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -107,10 +121,20 @@ export default function RegisterScreen() {
       password: '',
       confirmPassword: '',
       phoneNumber: '',
-      address: '',
+      address: {
+        street: '',
+        number: '',
+        complement: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        zipCode: '',
+      },
       type: 'user', // Mudado para lowercase
     },
   });
+
+  const addressErrors = errors.address as Partial<Record<keyof AddressParts, { message?: string }>> | undefined;
 
   // Formatar CPF enquanto digita
   const formatCPF = (value: string) => {
@@ -148,11 +172,22 @@ export default function RegisterScreen() {
       console.log('Tipo de usuário selecionado:', selectedUserType);
       setIsLoading(true);
 
-      const { confirmPassword, ...registerData } = data;
-      registerData.cpf = registerData.cpf.replace(/\D/g, '');
-      registerData.phoneNumber = registerData.phoneNumber.replace(/\D/g, '');
+      const { confirmPassword, address, type, ...rest } = data;
+      const cleanedCpf = rest.cpf.replace(/\D/g, '');
+      const cleanedPhone = rest.phoneNumber.replace(/\D/g, '');
+      const sanitizedAddress = sanitizeAddressParts(address);
+      const serializedAddress = serializeAddress(sanitizedAddress);
 
-      await register(registerData);
+      // Backend expects type in uppercase ('USER' | 'ADMIN'), convert before sending
+      const payload: RegisterRequest = {
+        ...rest,
+        cpf: cleanedCpf,
+        phoneNumber: cleanedPhone,
+        address: serializedAddress,
+        type: type === 'admin' ? 'ADMIN' : 'USER',
+      };
+
+      await register(payload);
 
       Alert.alert(
         'Cadastro Realizado!',
@@ -173,7 +208,7 @@ export default function RegisterScreen() {
     } catch (error: any) {
       console.error('=== ERRO NO CADASTRO ===');
       console.error('Erro:', error.message);
-  toast.showError('Erro no Cadastro', error.message || 'Não foi possível criar sua conta. Tente novamente.');
+      toast.showError('Erro no Cadastro', error.message || 'Não foi possível criar sua conta. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -313,11 +348,11 @@ export default function RegisterScreen() {
                     keyboardType="numeric"
                     onBlur={onBlur}
                     onChangeText={(text) => {
-                      const formatted = formatCPF(text);
-                      onChange(text.replace(/\D/g, ''));
-                      setValue('cpf', text.replace(/\D/g, ''));
+                      const cleaned = text.replace(/\D/g, '');
+                      onChange(cleaned);
+                      setValue('cpf', cleaned);
                     }}
-                    value={formatCPF(value)}
+                    value={formatCPF(value || '')}
                     editable={!isLoading}
                     maxLength={14}
                   />
@@ -372,11 +407,11 @@ export default function RegisterScreen() {
                     keyboardType="phone-pad"
                     onBlur={onBlur}
                     onChangeText={(text) => {
-                      const formatted = formatPhone(text);
-                      onChange(text.replace(/\D/g, ''));
-                      setValue('phoneNumber', text.replace(/\D/g, ''));
+                      const cleaned = text.replace(/\D/g, '');
+                      onChange(cleaned);
+                      setValue('phoneNumber', cleaned);
                     }}
-                    value={formatPhone(value)}
+                    value={formatPhone(value || '')}
                     editable={!isLoading}
                     maxLength={15}
                   />
@@ -387,32 +422,190 @@ export default function RegisterScreen() {
               )}
             </View>
 
+            <Text style={styles.groupLabel}>Endereço</Text>
+
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Endereço</Text>
+              <Text style={styles.label}>Rua</Text>
               <Controller
                 control={control}
-                name="address"
+                name="address.street"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <TextInput
                     style={[
                       styles.input,
-                      errors.address && styles.inputError,
-                      !errors.address && { borderColor: getThemeColor() },
+                      addressErrors?.street && styles.inputError,
+                      !addressErrors?.street && { borderColor: getThemeColor() },
                     ]}
-                    placeholder="Rua X, 123 - Cidade"
-                    autoCapitalize="sentences"
+                    placeholder="Rua Exemplo"
+                    autoCapitalize="words"
                     onBlur={onBlur}
                     onChangeText={onChange}
-                    value={value}
+                    value={value || ''}
                     editable={!isLoading}
                   />
                 )}
               />
-              {errors.address && (
-                <Text style={styles.errorText}>{errors.address.message}</Text>
+              {addressErrors?.street?.message && (
+                <Text style={styles.errorText}>{addressErrors.street.message}</Text>
               )}
             </View>
 
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Número</Text>
+              <Controller
+                control={control}
+                name="address.number"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      addressErrors?.number && styles.inputError,
+                      !addressErrors?.number && { borderColor: getThemeColor() },
+                    ]}
+                    placeholder="123"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value || ''}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {addressErrors?.number?.message && (
+                <Text style={styles.errorText}>{addressErrors.number.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Complemento</Text>
+              <Controller
+                control={control}
+                name="address.complement"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      addressErrors?.complement && styles.inputError,
+                      !addressErrors?.complement && { borderColor: getThemeColor() },
+                    ]}
+                    placeholder="Apartamento, bloco, etc."
+                    autoCapitalize="sentences"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value || ''}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {addressErrors?.complement?.message && (
+                <Text style={styles.errorText}>{addressErrors.complement.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Bairro</Text>
+              <Controller
+                control={control}
+                name="address.neighborhood"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      addressErrors?.neighborhood && styles.inputError,
+                      !addressErrors?.neighborhood && { borderColor: getThemeColor() },
+                    ]}
+                    placeholder="Centro"
+                    autoCapitalize="words"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value || ''}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {addressErrors?.neighborhood?.message && (
+                <Text style={styles.errorText}>{addressErrors.neighborhood.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Cidade</Text>
+              <Controller
+                control={control}
+                name="address.city"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      addressErrors?.city && styles.inputError,
+                      !addressErrors?.city && { borderColor: getThemeColor() },
+                    ]}
+                    placeholder="São Paulo"
+                    autoCapitalize="words"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value || ''}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {addressErrors?.city?.message && (
+                <Text style={styles.errorText}>{addressErrors.city.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Estado (UF)</Text>
+              <Controller
+                control={control}
+                name="address.state"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      addressErrors?.state && styles.inputError,
+                      !addressErrors?.state && { borderColor: getThemeColor() },
+                    ]}
+                    placeholder="SP"
+                    autoCapitalize="characters"
+                    maxLength={2}
+                    onBlur={onBlur}
+                    onChangeText={(text) => onChange(text.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2))}
+                    value={(value || '').toUpperCase()}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {addressErrors?.state?.message && (
+                <Text style={styles.errorText}>{addressErrors.state.message}</Text>
+              )}
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>CEP</Text>
+              <Controller
+                control={control}
+                name="address.zipCode"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      addressErrors?.zipCode && styles.inputError,
+                      !addressErrors?.zipCode && { borderColor: getThemeColor() },
+                    ]}
+                    placeholder="00000-000"
+                    keyboardType="numeric"
+                    maxLength={9}
+                    onBlur={onBlur}
+                    onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 8))}
+                    value={formatZipCode(value || '')}
+                    editable={!isLoading}
+                  />
+                )}
+              />
+              {addressErrors?.zipCode?.message && (
+                <Text style={styles.errorText}>{addressErrors.zipCode.message}</Text>
+              )}
+            </View>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Tipo de Conta</Text>
               <Controller
@@ -422,22 +615,22 @@ export default function RegisterScreen() {
                   <View style={styles.radioContainer}>
                     <TouchableOpacity
                       style={styles.radioOption}
-                      onPress={() => onChange('CUSTOMER')}
+                      onPress={() => onChange('user')}
                       disabled={isLoading}
                     >
-                      <View style={[styles.radio, value === 'CUSTOMER' && styles.radioSelected]}>
-                        {value === 'CUSTOMER' && <View style={styles.radioInner} />}
+                      <View style={[styles.radio, value === 'user' && styles.radioSelected]}>
+                        {value === 'user' && <View style={styles.radioInner} />}
                       </View>
                       <Text style={styles.radioText}>Cliente</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.radioOption}
-                      onPress={() => onChange('ADMIN')}
+                      onPress={() => onChange('admin')}
                       disabled={isLoading}
                     >
-                      <View style={[styles.radio, value === 'ADMIN' && styles.radioSelected]}>
-                        {value === 'ADMIN' && <View style={styles.radioInner} />}
+                      <View style={[styles.radio, value === 'admin' && styles.radioSelected]}>
+                        {value === 'admin' && <View style={styles.radioInner} />}
                       </View>
                       <Text style={styles.radioText}>Administrador</Text>
                     </TouchableOpacity>
@@ -646,6 +839,13 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 16,
   },
+  groupLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 4,
+  },
   label: {
     fontSize: 14,
     color: '#333',
@@ -701,5 +901,40 @@ const styles = StyleSheet.create({
     color: '#00BCD4',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  radioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 12,
+  },
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#00BCD4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSelected: {
+    backgroundColor: '#00BCD4',
+    borderColor: '#00BCD4',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#fff',
+  },
+  radioText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#333',
   },
 });

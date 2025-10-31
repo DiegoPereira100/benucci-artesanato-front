@@ -25,6 +25,16 @@ export interface RegisterRequest {
   type: 'USER' | 'ADMIN';
 }
 
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  password?: string;
+  cpf?: string;
+  phoneNumber?: string;
+  address?: string;
+  type?: 'USER' | 'ADMIN';
+}
+
 export interface AuthResponse {
   token: string;
   user: User | null;

@@ -8,9 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Dimensions,
-  Image,
-  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import toast from '../../src/utils/toast';
@@ -22,12 +20,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { useCart } from '@/contexts/CartContext';
+import { parseAddress, formatAddressSummary } from '../../src/utils/address';
 
 import { ProductCard } from '@/components/ui/ProductCard';
 import { ProductModal } from '@/components/ui/ProductModal';
 import { productService } from '@/services/productService';
-
-const { width } = Dimensions.get('window');
 
 export default function ExploreScreen() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -37,6 +34,39 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { width: windowWidth } = useWindowDimensions();
+
+  const productLayout = useMemo(() => {
+    const minCardWidth = 140;
+    const maxCardWidth = 320;
+    const basePadding = windowWidth >= 1024 ? 40 : windowWidth >= 768 ? 28 : 20;
+    const cardMarginTotal = 16; // left + right margins from card style
+
+    let columns = windowWidth >= 1400 ? 4 : windowWidth >= 1024 ? 3 : 2;
+    columns = Math.max(columns, 1);
+
+    let availableWidth = Math.max(windowWidth - basePadding * 2, minCardWidth);
+
+    while (columns > 1) {
+      const widthForColumn = (availableWidth - columns * cardMarginTotal) / columns;
+      if (widthForColumn >= minCardWidth) {
+        break;
+      }
+      columns -= 1;
+    }
+
+    const widthForColumn = (availableWidth - columns * cardMarginTotal) / columns;
+    const cardWidth = Math.max(Math.min(widthForColumn, maxCardWidth), minCardWidth);
+    const rowWidth = columns * (cardWidth + cardMarginTotal);
+    const leftoverSpace = Math.max(availableWidth - rowWidth, 0);
+    const horizontalPadding = basePadding + leftoverSpace / 2;
+
+    return {
+      columns,
+      cardWidth,
+      horizontalPadding,
+    };
+  }, [windowWidth]);
   
   const { user } = useAuth();
   const router = useRouter();
@@ -66,6 +96,12 @@ export default function ExploreScreen() {
   }, [products, activeCategory, searchQuery]);
 
   const extractLocation = useCallback((address: string) => {
+    const parsed = parseAddress(address);
+    if (parsed.city || parsed.state) {
+      setLocation({ city: parsed.city, state: parsed.state });
+      return;
+    }
+
     if (!address || address.trim() === '') {
       setLocation({ city: '', state: '' });
       return;
@@ -163,10 +199,10 @@ export default function ExploreScreen() {
     setFilteredProducts(filtered);
   }, [products, activeCategory, searchQuery]);
 
-  const handleProductPress = (product: Product) => {
+  const handleProductPress = useCallback((product: Product) => {
     setSelectedProduct(product);
     setModalVisible(true);
-  };
+  }, []);
 
   const handleAddToCart = (product: Product, quantity: number) => {
     // Verificar se há estoque suficiente
@@ -188,25 +224,34 @@ export default function ExploreScreen() {
       : name.substring(0, 2).toUpperCase();
   };
 
+  const addressSummary = useMemo(() => formatAddressSummary(parseAddress(user?.address)), [user?.address]);
+
   const renderHeader = useMemo(() => (
     <View style={styles.header}>
       <View style={styles.userSection}>
         <View style={styles.userInfo}>
-          <LinearGradient colors={['#00BCD4', '#2196F3']} style={styles.avatar}>
-            {user?.name ? (
-              <Text style={styles.avatarText}>{getUserInitials(user.name)}</Text>
-            ) : (
-              <Ionicons name="person" size={28} color="#fff" />
-            )}
-          </LinearGradient>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <LinearGradient colors={['#00BCD4', '#2196F3']} style={styles.avatar}>
+              {user?.name ? (
+                <Text style={styles.avatarText}>{getUserInitials(user.name)}</Text>
+              ) : (
+                <Ionicons name="person" size={28} color="#fff" />
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
           <View style={styles.userText}>
             <Text style={styles.welcomeText}>Bem-vindo(a)!</Text>
             <Text style={styles.userName}>{user?.name || 'Visitante'}</Text>
             <Text style={styles.location}>
               {location.city && location.state
                 ? `${location.city}, ${location.state}`
-                : user?.address
-                  ? user.address.substring(0, 30) + (user.address.length > 30 ? '...' : '')
+                : addressSummary
+                  ? addressSummary.length > 30
+                    ? `${addressSummary.slice(0, 30)}...`
+                    : addressSummary
                   : 'Localização não informada'}
             </Text>
           </View>
@@ -267,11 +312,15 @@ export default function ExploreScreen() {
         </ScrollView>
       </View>
     </View>
-  ), [user, location, searchQuery, activeCategory, totalItems]);
+  ), [user, location, searchQuery, activeCategory, totalItems, router, addressSummary]);
 
-  const renderProduct = ({ item }: { item: Product }) => (
-    <ProductCard product={item} onPress={() => handleProductPress(item)} />
-  );
+  const renderProduct = useCallback(({ item }: { item: Product }) => (
+    <ProductCard
+      product={item}
+      onPress={() => handleProductPress(item)}
+      cardWidth={productLayout.cardWidth}
+    />
+  ), [handleProductPress, productLayout.cardWidth]);
 
   const renderEmptyList = () => (
     <View style={styles.emptyContainer}>
@@ -313,15 +362,20 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
+        key={productLayout.columns}
         data={filteredProducts}
         renderItem={renderProduct}
         keyExtractor={(item) => item.id.toString()}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyList}
-        numColumns={2}
-        columnWrapperStyle={filteredProducts.length > 0 ? styles.productRow : undefined}
+        numColumns={productLayout.columns}
+        columnWrapperStyle={filteredProducts.length > 0 && productLayout.columns > 1
+          ? [styles.productRow, { paddingHorizontal: productLayout.horizontalPadding }]
+          : undefined}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={productLayout.columns === 1
+          ? [styles.listContent, { paddingHorizontal: productLayout.horizontalPadding }]
+          : styles.listContent}
         keyboardShouldPersistTaps="handled"
         refreshing={refreshing}
         onRefresh={handleRefresh}
@@ -501,9 +555,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   productRow: {
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: 20,
-    marginBottom: 4,
+    marginBottom: 16,
   },
   emptyContainer: {
     paddingVertical: 60,

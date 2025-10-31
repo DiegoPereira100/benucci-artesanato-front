@@ -10,7 +10,7 @@ type Props = {
 
 export default function ProductList({ products, onEdit, onDelete }: Props) {
   const items = products.map((p) => (
-    <View style={styles.listItem}>
+    <View key={p.id} style={styles.listItem}>
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
           <Text style={styles.itemTitle}>{p.name}</Text>

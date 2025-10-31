@@ -1,10 +1,10 @@
-import { StyleSheet, Dimensions } from "react-native";
-const { width } = Dimensions.get("window");
+import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
   card: {
-    width: (width - 52) / 2,
     marginBottom: 16,
+    flexShrink: 1,
+    marginHorizontal: 8,
   },
   gradient: {
     padding: 16,
