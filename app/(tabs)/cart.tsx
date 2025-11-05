@@ -8,9 +8,9 @@ import {
   Image,
   Alert,
   ActivityIndicator,
-  Linking as RNLinking,
+  Platform,
+  Linking,
 } from 'react-native';
-import Toast from 'react-native-toast-message';
 import toast from '../../src/utils/toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +20,6 @@ import { useRouter } from 'expo-router';
 import { useCart, CartItem } from '@/contexts/CartContext';
 import { useAuth } from '@/hooks/useAuth';
 import { orderService } from '@/services/orderService';
-import { Linking } from 'react-native';
 import { parseAddress, formatAddressSummary } from '../../src/utils/address';
 import { OrderRequestDTO } from '@/services/api';
 
@@ -35,6 +34,30 @@ export default function CartScreen() {
     () => (user?.address ? formatAddressSummary(parseAddress(user.address)) : ''),
     [user?.address],
   );
+
+  const attemptOpenCheckout = React.useCallback(async (url: string) => {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined') {
+          window.location.href = url;
+          return true;
+        }
+        return false;
+      }
+
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        console.warn('Linking não suporta URL fornecida:', url);
+        return false;
+      }
+
+      await Linking.openURL(url);
+      return true;
+    } catch (error) {
+      console.error('Erro ao abrir checkout URL:', error);
+      return false;
+    }
+  }, []);
 
   const handleIncrement = (productId: number, currentQuantity: number) => {
     updateItemQuantity(productId, currentQuantity + 1);
@@ -82,7 +105,7 @@ export default function CartScreen() {
 
         console.log('Criando pedido com payload:', orderPayload);
 
-  const res = await orderService.createOrder(orderPayload);
+        const res = await orderService.createOrder(orderPayload);
         console.log('Resposta createOrder:', res);
 
         // Tentar extrair possíveis campos retornados pelo backend
@@ -100,9 +123,33 @@ export default function CartScreen() {
 
         if (checkoutUrl) {
           console.log('Abrindo checkout URL:', checkoutUrl);
-          // abrir no navegador externo
-          await Linking.openURL(checkoutUrl);
-          toast.showInfo('Redirecionando', 'Abrindo a página de pagamento...');
+          const opened = await attemptOpenCheckout(checkoutUrl);
+
+          if (opened) {
+            toast.showInfo('Redirecionando', 'Abrindo a página de pagamento...');
+          } else {
+            console.warn('Falha ao abrir checkout automaticamente. URL disponível no console.');
+            Alert.alert(
+              'Abrir pagamento',
+              'Não foi possível abrir o Mercado Pago automaticamente. Deseja tentar novamente?',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Abrir',
+                  onPress: () => {
+                    attemptOpenCheckout(checkoutUrl).then((openedAgain) => {
+                      if (!openedAgain) {
+                        toast.showError(
+                          'Checkout indisponível',
+                          'Ainda não foi possível abrir automaticamente. Utilize o link exibido nos logs.',
+                        );
+                      }
+                    });
+                  },
+                },
+              ],
+            );
+          }
         } else {
           console.warn('Nenhuma URL de checkout retornada pelo servidor.', res);
           toast.showError('Erro', 'Não foi possível iniciar o pagamento. Tente novamente.');
@@ -274,39 +321,6 @@ export default function CartScreen() {
               <Text style={styles.itemCountText}>{totalItems}</Text>
             </View>
           )}
-          {/* Manual refresh / clear cart button while API is not in production */}
-          <TouchableOpacity
-            style={styles.headerActionButton}
-            accessibilityLabel="Ações do carrinho"
-            onPress={() => {
-              // Show options: Recarregar ou Limpar
-              Alert.alert('Ações do Carrinho', 'Escolha uma ação', [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Recarregar Carrinho', onPress: async () => {
-                    try {
-                      await reloadCart();
-                      toast.showSuccess('Atualizado', 'Carrinho recarregado do armazenamento local.');
-                    } catch (e: any) {
-                      console.error('Erro ao recarregar carrinho:', e);
-                      toast.showError('Erro', e?.message || 'Não foi possível recarregar o carrinho');
-                    }
-                  }
-                },
-                { text: 'Limpar Carrinho', style: 'destructive', onPress: () => {
-                    Alert.alert('Confirmar', 'Deseja realmente limpar o carrinho?', [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Sim, limpar', style: 'destructive', onPress: () => { clearCart(); toast.showSuccess('Carrinho limpo', 'Seu carrinho foi esvaziado.'); } }
-                    ]);
-                  }
-                }
-              ]);
-            }}
-          >
-            <View style={styles.headerActionContent}>
-              <Ionicons name="refresh" size={18} color="#333" />
-              <Text style={styles.headerActionText}>Atualizar</Text>
-            </View>
-          </TouchableOpacity>
         </View>
       </View>
 
