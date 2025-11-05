@@ -7,3 +7,5 @@ interface NodeRequire {
     mode?: 'sync' | 'eager' | 'weak' | 'lazy' | 'lazy-once'
   ) => any;
 }
+
+declare module 'expo-image-picker';

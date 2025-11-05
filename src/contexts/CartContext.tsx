@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product } from '@/types/product';
+import { useAuth } from '@/hooks/useAuth';
 
 // Tipo para item do carrinho
 export interface CartItem {
@@ -15,6 +16,7 @@ interface CartContextType {
   removeFromCart: (productId: number) => void;
   updateItemQuantity: (productId: number, quantity: number) => void;
   clearCart: () => void;
+  reloadCart: () => Promise<void>;
   isInCart: (productId: number) => boolean;
   getItemQuantity: (productId: number) => number;
   totalItems: number;
@@ -25,18 +27,25 @@ interface CartContextType {
 // Criar contexto
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-// Chave para AsyncStorage
-const CART_STORAGE_KEY = '@artesanato_cart';
+// Chave base para AsyncStorage
+const CART_STORAGE_KEY_BASE = '@artesanato_cart';
+
+function cartKeyForUser(userId?: number | string | null) {
+  if (!userId) return `${CART_STORAGE_KEY_BASE}_guest`;
+  return `${CART_STORAGE_KEY_BASE}_${userId}`;
+}
 
 // Provider do carrinho
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Carregar carrinho do AsyncStorage ao inicializar
   useEffect(() => {
     loadCartFromStorage();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Salvar carrinho no AsyncStorage sempre que mudar
   useEffect(() => {
@@ -45,12 +54,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cartItems, loading]);
 
-  // Carregar carrinho do storage
+  // Carregar carrinho do storage (usa chave por usuário)
   const loadCartFromStorage = async () => {
+    const key = cartKeyForUser(user?.id);
     try {
-      const storedCart = await AsyncStorage.getItem(CART_STORAGE_KEY);
+      console.log('CartContext -> loading cart from storage key', key);
+      const storedCart = await AsyncStorage.getItem(key);
+      console.log('CartContext -> raw storedCart:', storedCart ? (storedCart.length > 200 ? storedCart.slice(0,200)+'...' : storedCart) : null);
       if (storedCart) {
         setCartItems(JSON.parse(storedCart));
+      } else {
+        setCartItems([]);
       }
     } catch (error) {
       console.error('Erro ao carregar carrinho:', error);
@@ -59,10 +73,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Salvar carrinho no storage
+  // Exposed reload function - useful for manual refresh actions
+  const reloadCart = async () => {
+    setLoading(true);
+    await loadCartFromStorage();
+  };
+
+  // Salvar carrinho no storage (usa chave por usuário)
   const saveCartToStorage = async () => {
+    const key = cartKeyForUser(user?.id);
     try {
-      await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+      const payload = JSON.stringify(cartItems);
+      console.log('CartContext -> saving cart to storage key', key, 'size:', payload.length);
+      await AsyncStorage.setItem(key, payload);
     } catch (error) {
       console.error('Erro ao salvar carrinho:', error);
     }
@@ -110,8 +133,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Limpar carrinho
   const clearCart = useCallback(() => {
+    const key = cartKeyForUser(user?.id);
+    console.log('CartContext -> clearCart called, clearing memory cart and storage key', key);
     setCartItems([]);
-  }, []);
+    // remove from storage as well
+    AsyncStorage.removeItem(key).catch(e => console.warn('CartContext -> failed to remove cart from storage', e));
+  }, [user?.id]);
+
+  // Ensure cart is cleared on logout (when user becomes null)
+  useEffect(() => {
+    if (!user) {
+      // clear guest cart as a safety measure
+      const guestKey = cartKeyForUser(null);
+      AsyncStorage.removeItem(guestKey).catch(e => console.warn('CartContext -> failed to remove guest cart on logout', e));
+      setCartItems([]);
+    }
+  }, [user]);
 
   // Verificar se produto está no carrinho
   const isInCart = useCallback((productId: number) => {
@@ -143,6 +180,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeFromCart,
       updateItemQuantity,
       clearCart,
+      reloadCart,
       isInCart,
       getItemQuantity,
       totalItems,
@@ -155,6 +193,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeFromCart,
       updateItemQuantity,
       clearCart,
+      reloadCart,
       isInCart,
       getItemQuantity,
       totalItems,

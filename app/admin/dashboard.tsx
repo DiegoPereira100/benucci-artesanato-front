@@ -17,6 +17,23 @@ import ProductList from '@/components/admin/ProductList';
 import ProductEditModal from '@/components/admin/ProductEditModal';
 import { Alert } from 'react-native';
 
+// Helper to map internal order status to readable label
+function mapOrderStatus(status: string) {
+  switch ((status || '').toLowerCase()) {
+    case 'pending':
+      return 'Aguardando Pagamento';
+    case 'preparing':
+      return 'Em Preparação';
+    case 'shipped':
+      return 'Enviado';
+    case 'delivered':
+      return 'Pedido Concluído';
+    case 'canceled':
+      return 'Cancelado';
+    default:
+      return status || 'Desconhecido';
+  }
+}
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const [selectedTab, setSelectedTab] = useState<'products' | 'orders' | 'users'>('products');
@@ -147,7 +164,7 @@ export default function AdminDashboard() {
     // push to the (tabs) route so the bottom tab navigator shows up
     switch (tab) {
       case 'home':
-        router.push('/(tabs)/home');
+        router.push('/(tabs)/products');
         break;
       case 'products':
         router.push('/(tabs)/products');
@@ -295,26 +312,35 @@ export default function AdminDashboard() {
                   <Text style={styles.fetchButtonText}>Buscar Pedidos</Text>
                 </TouchableOpacity>
 
-                {orders.length === 0 && !loading ? (
+                {( !Array.isArray(orders) || orders.length === 0 ) && !loading ? (
                   <Text style={styles.emptyText}>Nenhum pedido para o usuário informado.</Text>
                 ) : (
-                  React.Children.toArray(orders.map((o: any) => (
-                    <View style={styles.listItem}>
-                      <Text style={styles.itemTitle}>Pedido #{o.id}</Text>
-                      <Text style={styles.itemSubtitle}>Status: {o.status} • Total: {o.totalAmount ?? o.total}</Text>
-                    </View>
-                  )))
+                  React.Children.toArray((Array.isArray(orders) ? orders : []).map((o: any) => {
+                    const statusLabel = mapOrderStatus(o?.status ?? 'pending');
+                    return (
+                      <TouchableOpacity
+                        key={o?.id ?? Math.random().toString(36).slice(2,9)}
+                        style={styles.listItem}
+                        onPress={() => { if (o?.id) router.push(`/admin/orders/${o.id}`); }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.itemTitle}>Pedido #{o.id}</Text>
+                        <Text style={styles.itemSubtitle}>{o.user?.name ?? 'Cliente não informado'} • {new Date(o.orderDate ?? Date.now()).toLocaleString()}</Text>
+                        <Text style={styles.itemSubtitle}>Status: {statusLabel} • Total: R$ {Number(o.totalAmount ?? o.total ?? 0).toFixed(2)}</Text>
+                      </TouchableOpacity>
+                    );
+                  }))
                 )}
               </View>
             )}
 
             {selectedTab === 'users' && (
               <View>
-                {users.length === 0 && !loading ? (
+                {( !Array.isArray(users) || users.length === 0 ) && !loading ? (
                   <Text style={styles.emptyText}>Nenhum usuário encontrado.</Text>
                 ) : (
-                  React.Children.toArray(users.map(u => (
-                    <View style={styles.listItem}>
+                  React.Children.toArray((Array.isArray(users) ? users : []).map(u => (
+                    <View key={u?.id ?? u?.email ?? Math.random().toString(36).slice(2,9)} style={styles.listItem}>
                       <Text style={styles.itemTitle}>{u.name}</Text>
                       <Text style={styles.itemSubtitle}>{u.email} • {u.type}</Text>
                     </View>

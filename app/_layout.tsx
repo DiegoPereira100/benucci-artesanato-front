@@ -32,8 +32,8 @@ function InitialLayout() {
 
     // APENAS redireciona se usuário logado está na área de auth
     if (user && inAuthGroup) {
-      console.log('Usuário logado na área de auth - redirecionando para home');
-      router.replace('/(tabs)/home');
+      console.log('Usuário logado na área de auth - redirecionando para products');
+      router.replace('/(tabs)/products');
       return;
     }
 
@@ -68,9 +68,9 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider children={undefined}>
+    <AuthProvider>
       {/* ← ADICIONAR O CARTPROVIDER AQUI */}
-      <CartProvider children={undefined}>
+      <CartProvider>
         <InitialLayout />
       </CartProvider>
       {/* ← FIM DO CARTPROVIDER */}

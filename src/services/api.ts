@@ -2,7 +2,7 @@
 
 import axios, { AxiosInstance } from "axios";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '@env';
+import { API_BASE_URL, API_TIMEOUT } from '@env';
 import { Product } from '@/types/product';
 
 class ApiService {
@@ -11,13 +11,17 @@ class ApiService {
 
   constructor() {
     // API com autenticação (para rotas protegidas)
+    const resolvedBaseURL = API_BASE_URL?.trim() || 'https://benucci-artesanato.onrender.com/';
+    const timeoutMs = Number(API_TIMEOUT) || 15000;
+    console.log('ApiService -> resolved base URL:', resolvedBaseURL, 'timeout:', timeoutMs);
     this.api = axios.create({
-      baseURL: API_BASE_URL, 
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      
+      baseURL: resolvedBaseURL,
+      timeout: timeoutMs,
+    });
+    // Public API client (no auth headers/interceptors) — used for public endpoints when token unauthenticated
+    this.publicApi = axios.create({
+      baseURL: resolvedBaseURL,
+      timeout: timeoutMs,
     });
     this.api.interceptors.request.use(
       async (config) => {
@@ -222,15 +226,19 @@ class ApiService {
       const response = await apiToUse.get<ProductDTO[]>('/products');
       
       // Mapear do formato do backend para o formato do frontend
-      return response.data.map(dto => ({
-        id: dto.id,
-        name: dto.name,
-        description: dto.description,
-        price: dto.price,
-        category: dto.category.name,
-        image_url: dto.imageUrl,
-        stock: dto.stock,
-      }));
+      return response.data.map(dto => {
+        const categoryName = dto.category?.name?.trim() || 'Sem categoria';
+        return {
+          id: dto.id,
+          name: dto.name,
+          description: dto.description,
+          price: dto.price,
+          category: categoryName,
+          image_url: this.resolveImageUrl(dto.imageUrl ?? null),
+          stock: dto.stock ?? 0,
+          categoryId: dto.category?.id ?? dto.categoryId ?? null,
+        };
+      });
     } catch (error: any) {
       // Se falhar com token, tentar sem autenticação
       const status = error?.response?.status;
@@ -240,15 +248,19 @@ class ApiService {
           console.log('Tentando buscar produtos sem autenticação...');
           const response = await this.publicApi.get<ProductDTO[]>('/products');
           
-          return response.data.map(dto => ({
-            id: dto.id,
-            name: dto.name,
-            description: dto.description,
-            price: dto.price,
-            category: dto.category.name,
-            image_url: dto.imageUrl,
-            stock: dto.stock,
-          }));
+          return response.data.map(dto => {
+            const categoryName = dto.category?.name?.trim() || 'Sem categoria';
+            return {
+              id: dto.id,
+              name: dto.name,
+              description: dto.description,
+              price: dto.price,
+              category: categoryName,
+              image_url: this.resolveImageUrl(dto.imageUrl ?? null),
+              stock: dto.stock ?? 0,
+              categoryId: dto.category?.id ?? dto.categoryId ?? null,
+            };
+          });
         } catch (publicError) {
           console.error('Erro ao buscar produtos (público):', publicError);
           throw publicError;
@@ -271,14 +283,16 @@ class ApiService {
       const response = await apiToUse.get<ProductDTO>(`/products/${id}`);
       const dto = response.data;
       
+      const categoryName = dto.category?.name?.trim() || 'Sem categoria';
       return {
         id: dto.id,
         name: dto.name,
         description: dto.description,
         price: dto.price,
-        category: dto.category.name,
-        image_url: dto.imageUrl,
-        stock: dto.stock,
+        category: categoryName,
+        image_url: this.resolveImageUrl(dto.imageUrl ?? null),
+        stock: dto.stock ?? 0,
+        categoryId: dto.category?.id ?? dto.categoryId ?? null,
       };
     } catch (error: any) {
       if (error?.response?.status === 403 || error?.response?.status === 401) {
@@ -286,14 +300,16 @@ class ApiService {
           const response = await this.publicApi.get<ProductDTO>(`/products/${id}`);
           const dto = response.data;
           
+          const categoryName = dto.category?.name?.trim() || 'Sem categoria';
           return {
             id: dto.id,
             name: dto.name,
             description: dto.description,
             price: dto.price,
-            category: dto.category.name,
-            image_url: dto.imageUrl,
-            stock: dto.stock,
+            category: categoryName,
+            image_url: this.resolveImageUrl(dto.imageUrl ?? null),
+            stock: dto.stock ?? 0,
+            categoryId: dto.category?.id ?? dto.categoryId ?? null,
           };
         } catch (publicError) {
           console.error('Erro ao buscar produto (público):', publicError);
@@ -327,8 +343,17 @@ class ApiService {
           ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
           : { 'Content-Type': 'application/json' },
       });
-      console.log('ApiService.createProduct -> produto criado com sucesso:', response.data);
-      return response.data;
+      let payload: any = response.data;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch (parseError) {
+          console.warn('ApiService.createProduct -> resposta não JSON recebida:', payload);
+          payload = { message: payload };
+        }
+      }
+      console.log('ApiService.createProduct -> produto criado com sucesso:', payload);
+      return payload;
     } catch (error: any) {
       console.error('ApiService.createProduct -> erro ao criar produto:', error);
       if (error?.response?.data) {
@@ -339,6 +364,28 @@ class ApiService {
       }
       throw error;
     }
+  }
+
+  private resolveImageUrl(imageUrl?: string | null): string | null {
+    if (!imageUrl) {
+      return null;
+    }
+
+    const trimmed = imageUrl.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    const base = (API_BASE_URL || '').replace(/\/$/, '');
+    if (trimmed.startsWith('/')) {
+      return `${base}${trimmed}`;
+    }
+
+    return `${base}/${trimmed}`;
   }
 
   // ========================================
@@ -416,12 +463,13 @@ export interface ProductDTO {
   name: string;
   description: string;
   price: number;
-  stock: number;
-  imageUrl: string;
-  category: {
+  stock?: number | null;
+  imageUrl?: string | null;
+  categoryId?: number | null;
+  category?: {
     id: number;
     name: string;
-  };
+  } | null;
 }
 
 export interface CreateProductRequest {
@@ -429,7 +477,7 @@ export interface CreateProductRequest {
   description: string;
   price: number;
   stock: number;
-  imageUrl: string;
+  imageUrl: string | null;
   category: {
     id: number;
     name: string;
@@ -445,7 +493,9 @@ export interface OrderItemDTO {
 export interface OrderRequestDTO {
   userId: number;
   items: OrderItemDTO[];
-  shippingAddress: string;
+  deliveryType: string;
+  deliveryAddress: string;
+  paymentMethod: string;
 }
 
 export interface OrderResponseDTO {

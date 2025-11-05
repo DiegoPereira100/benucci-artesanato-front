@@ -7,11 +7,16 @@ import { styles } from "./styles";
 type Props = {
   product: Product;
   onPress: () => void;
+  cardWidth: number;
 };
 
-export function ProductCard({ product, onPress }: Props) {
+export function ProductCard({ product, onPress, cardWidth }: Props) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.card} onPress={onPress}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={[styles.card, { width: cardWidth }]}
+      onPress={onPress}
+    >
       <LinearGradient colors={["#E3F2FD", "#E0F7FA"]} style={styles.gradient}>
         <View style={styles.imageWrapper}>
           {product.image_url ? (

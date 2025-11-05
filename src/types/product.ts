@@ -6,6 +6,7 @@ export interface Product {
   image_url: string | null;
   category: string;
   stock: number;
+  categoryId?: number | null;
 }
 
 export interface User {

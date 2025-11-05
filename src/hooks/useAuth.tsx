@@ -1,8 +1,10 @@
 // src/hooks/useAuth.tsx
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import authService from '../services/auth';
-import { User, LoginRequest, RegisterRequest } from '../types/auth';
+import userService from '../services/userService';
+import { User, LoginRequest, RegisterRequest, UpdateUserRequest } from '../types/auth';
+import { parseAddress, serializeAddress, hasAddressInformation, addressPartsAreEqual } from '../utils/address';
 import { API_BASE_URL } from '@env';
 
 interface AuthContextData {
@@ -12,9 +14,31 @@ interface AuthContextData {
   login: (credentials: LoginRequest) => Promise<User>; // ✅ Agora retorna User
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
+  updateProfile: (updates: UpdateUserRequest) => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
+
+const toStoredAddressString = (value?: string): string => {
+  const parsed = parseAddress(value);
+  return hasAddressInformation(parsed) ? serializeAddress(parsed) : '';
+};
+
+const hasUserChanged = (current: User | null, next: User): boolean => {
+  if (!current) return true;
+  const addressChanged = !addressPartsAreEqual(parseAddress(current.address), parseAddress(next.address));
+
+  return (
+    current.id !== next.id ||
+    current.name !== next.name ||
+    current.email !== next.email ||
+    current.cpf !== next.cpf ||
+    current.phoneNumber !== next.phoneNumber ||
+    addressChanged ||
+    current.type !== next.type
+  );
+};
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -36,8 +60,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (userData) {
           // normaliza o tipo salvo (pode vir como 'CUSTOMER' do passado)
           const normalizedType = (userData.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          const normalizedAddress = toStoredAddressString(userData.address);
           if (userData.type !== normalizedType) {
-            const updated = { ...userData, type: normalizedType } as User;
+            const updated = { ...userData, type: normalizedType, address: normalizedAddress } as User;
+            await authService.saveUser(updated);
+            setUser(updated);
+          } else if (userData.address !== normalizedAddress) {
+            const updated = { ...userData, address: normalizedAddress } as User;
             await authService.saveUser(updated);
             setUser(updated);
           } else {
@@ -79,6 +108,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // ✅ CORREÇÃO: O backend retorna 'role' com valores 'admin' ou 'customer'
           // Precisamos mapear para o formato esperado pelo frontend
           const userRole = payload.role === 'admin' ? 'ADMIN' : 'USER';
+          const addressString = toStoredAddressString(payload.address);
           
           // Cria o objeto user a partir do payload
           userData = {
@@ -88,7 +118,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             type: userRole, // ✅ Mapeia 'admin'/'customer' para 'ADMIN'/'USER'
             cpf: payload.cpf || '',
             phoneNumber: payload.phoneNumber || '',
-            address: payload.address || '',
+            address: addressString,
           };
           
           console.log('✅ Dados do usuário extraídos:', userData);
@@ -108,7 +138,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const rawUser = responseObj.user as User;
         // normaliza tipo
         const normalizedType = (rawUser.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
-        userData = { ...rawUser, type: normalizedType } as User;
+        const normalizedAddress = toStoredAddressString(rawUser.address);
+        userData = { ...rawUser, type: normalizedType, address: normalizedAddress } as User;
         // persiste a versão normalizada
         try {
           await authService.saveUser(userData);
@@ -139,7 +170,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('Registro fez login automático com token');
         const rawUser = response.user as User;
         const normalizedType = (rawUser.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
-        const normalizedUser = { ...rawUser, type: normalizedType } as User;
+        const normalizedAddress = toStoredAddressString(rawUser.address);
+        const normalizedUser = { ...rawUser, type: normalizedType, address: normalizedAddress } as User;
         try {
           await authService.saveUser(normalizedUser);
         } catch (e) {
@@ -156,6 +188,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const payload = JSON.parse(atob(base64));
           
           const userRole = (payload.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          const addressString = toStoredAddressString(payload.address);
           
           const userData: User = {
             id: payload.id,
@@ -164,7 +197,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             type: userRole,
             cpf: payload.cpf || '',
             phoneNumber: payload.phoneNumber || '',
-            address: payload.address || '',
+            address: addressString,
           };
           
           try {
@@ -183,6 +216,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (responseObj.id && responseObj.email) {
           console.log('Registro retornou dados do usuário diretamente');
           const userRole = (responseObj.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          const addressString = toStoredAddressString(responseObj.address);
           const userData: User = {
             id: responseObj.id,
             email: responseObj.email,
@@ -190,7 +224,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             type: userRole,
             cpf: responseObj.cpf || '',
             phoneNumber: responseObj.phoneNumber || '',
-            address: responseObj.address || '',
+            address: addressString,
           };
           try {
             await authService.saveUser(userData);
@@ -220,6 +254,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const refreshUserProfile = useCallback(async (): Promise<User | null> => {
+    try {
+      const stored = user ?? (await authService.getUser());
+      const userId = stored?.id;
+      if (!userId) {
+        console.warn('refreshUserProfile -> no user id available');
+        return null;
+      }
+
+      const latest = await userService.getUserById(userId);
+      if (!hasUserChanged(user, latest)) {
+        return user;
+      }
+
+      await authService.saveUser(latest);
+      setUser(latest);
+      return latest;
+    } catch (error) {
+      console.error('Erro ao atualizar dados do usuário:', error);
+      return null;
+    }
+  }, [user]);
+
+  const updateProfile = useCallback(async (updates: UpdateUserRequest): Promise<User | null> => {
+    try {
+      const stored = user ?? (await authService.getUser());
+      const userId = stored?.id;
+      if (!userId) {
+        console.warn('updateProfile -> no user id available');
+        return null;
+      }
+
+      const payload: UpdateUserRequest = { ...updates };
+      if (payload.type) {
+        payload.type = payload.type.toUpperCase() as 'USER' | 'ADMIN';
+      }
+
+      const updated = await userService.updateUser(userId, payload);
+      await authService.saveUser(updated);
+      setUser(updated);
+      return updated;
+    } catch (error) {
+      console.error('Erro ao salvar perfil do usuário:', error);
+      throw error;
+    }
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -229,6 +310,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         login,
         register,
         logout,
+        refreshUser: refreshUserProfile,
+        updateProfile,
       }}
     >
       {children}

@@ -2,6 +2,21 @@
 import apiService from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LoginRequest, RegisterRequest, AuthResponse, User } from '../types/auth';
+import { parseAddress, sanitizeAddressParts, serializeAddress, hasAddressInformation } from '../utils/address';
+
+const resolveAddressString = (incoming?: string, fallback?: string): string => {
+  if (incoming !== undefined) {
+    const incomingParts = sanitizeAddressParts(parseAddress(incoming));
+    return hasAddressInformation(incomingParts) ? serializeAddress(incomingParts) : '';
+  }
+
+  if (fallback !== undefined) {
+    const fallbackParts = sanitizeAddressParts(parseAddress(fallback));
+    return hasAddressInformation(fallbackParts) ? serializeAddress(fallbackParts) : '';
+  }
+
+  return '';
+};
 
 class AuthService {
   // Decodifica JWT e retorna dados básicos
@@ -55,6 +70,8 @@ class AuthService {
       if (user.type) {
         user.type = user.type.toUpperCase() as 'USER' | 'ADMIN';
       }
+
+      user.address = resolveAddressString(user.address);
       
       return user;
     } catch (error: any) {
@@ -73,7 +90,7 @@ class AuthService {
         type: (updates.type?.toUpperCase() as 'USER' | 'ADMIN') || 'USER',
         cpf: updates.cpf || '',
         phoneNumber: updates.phoneNumber || '',
-        address: updates.address || '',
+  address: resolveAddressString(updates.address),
       };
     }
 
@@ -87,7 +104,7 @@ class AuthService {
       ...updates,
       type: normalizedType,
       // Preserva campos quando update é vazio
-      address: (updates.address && updates.address.trim() !== '') ? updates.address : existing.address,
+  address: resolveAddressString(updates.address, existing.address),
       cpf: (updates.cpf && updates.cpf.trim() !== '') ? updates.cpf : existing.cpf,
       phoneNumber: (updates.phoneNumber && updates.phoneNumber.trim() !== '') ? updates.phoneNumber : existing.phoneNumber,
     };
@@ -207,20 +224,55 @@ class AuthService {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
       console.log('🔐 login -> iniciando');
-      
       const response = await apiService.instance.post('/auth/login', credentials);
-      console.log('📥 login response:', response.data);
+      console.log('📥 login response status:', response.status);
+      console.log('📥 login response data preview:', response.data && (typeof response.data === 'string' ? response.data.slice(0,200) : JSON.stringify(Object.keys(response.data).slice(0,20))));
 
-      // Backend deve retornar: { token: '...', user: {...} }
-      if (!response.data || !response.data.token) {
+      // Backend may return different shapes. Support common variants:
+      // - { token: '...', user: {...} }
+      // - { access_token: '...' }
+      // - raw JWT string
+      // - { data: { token: '...', user: {...} } }
+      let token: string | null = null;
+      let userFromBackend: any = null;
+
+      const body = response.data;
+      if (!body && body !== '') {
+        // nothing
+      }
+
+      if (typeof body === 'string' && body.trim() !== '') {
+        // raw token string
+        token = body;
+      } else if (body && typeof body === 'object') {
+        if (body.token) {
+          token = body.token;
+          userFromBackend = body.user || body.userFromBackend || body.data?.user;
+        } else if (body.access_token) {
+          token = body.access_token;
+          userFromBackend = body.user || body.data?.user;
+        } else if (body.data && typeof body.data === 'object') {
+          const inner = body.data;
+          if (inner.token) {
+            token = inner.token;
+            userFromBackend = inner.user || body.user;
+          } else if (typeof inner === 'string') {
+            token = inner;
+          }
+        }
+      }
+
+      console.log('🔎 login -> resolved token present?:', !!token);
+
+      // Backend should provide token; if not, surface the response for debugging
+      if (!token) {
+        console.error('❌ login -> token not found in response. full body preview:', response.data);
         throw new Error('Resposta inválida do servidor');
       }
 
-      const { token, user: userFromBackend } = response.data;
-
       // Valida se é JWT
       if (!this.isJwt(token)) {
-        throw new Error('Token inválido recebido do servidor');
+        console.warn('⚠️ login -> token received does not look like a JWT, but will be stored');
       }
 
       // Salva o token
@@ -228,7 +280,13 @@ class AuthService {
 
       // Normaliza o user do backend
       if (userFromBackend) {
-        userFromBackend.type = (userFromBackend.type?.toUpperCase() || 'USER') as 'USER' | 'ADMIN';
+        try {
+          userFromBackend.type = (userFromBackend.type?.toUpperCase() || 'USER') as 'USER' | 'ADMIN';
+        } catch (e) {
+          // ignore
+        }
+
+        userFromBackend.address = resolveAddressString(userFromBackend.address);
         await this.saveUser(userFromBackend);
         return { token, user: userFromBackend };
       }
@@ -251,7 +309,7 @@ class AuthService {
         type: decoded?.type || 'USER',
         cpf: '',
         phoneNumber: '',
-        address: '',
+        address: resolveAddressString(''),
       };
       await this.saveUser(fallbackUser);
       return { token, user: fallbackUser };
@@ -291,6 +349,7 @@ class AuthService {
       // Normaliza o user do backend
       if (userFromBackend) {
         userFromBackend.type = (userFromBackend.type?.toUpperCase() || userData.type) as 'USER' | 'ADMIN';
+        userFromBackend.address = resolveAddressString(userFromBackend.address);
         await this.saveUser(userFromBackend);
         return { token, user: userFromBackend };
       }
@@ -313,7 +372,7 @@ class AuthService {
         type: userData.type,
         cpf: userData.cpf,
         phoneNumber: userData.phoneNumber,
-        address: userData.address,
+        address: resolveAddressString(userData.address),
       };
       await this.saveUser(fallbackUser);
       return { token, user: fallbackUser };
