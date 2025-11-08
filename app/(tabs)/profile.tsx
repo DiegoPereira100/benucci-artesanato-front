@@ -91,11 +91,21 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<FormState>(buildInitialForm(user || undefined));
   const refreshInFlightRef = useRef(false);
+  const userRef = useRef<User | null>(user);
+  const refreshUserRef = useRef(refreshUser);
   const addressSummary = useMemo(() => formatAddressSummary(formData.address), [formData.address]);
 
   const syncForm = useCallback((source: User | null | undefined) => {
     setFormData(buildInitialForm(source ?? undefined));
   }, []);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    refreshUserRef.current = refreshUser;
+  }, [refreshUser]);
 
   const loadProfile = useCallback(async () => {
     if (refreshInFlightRef.current) {
@@ -105,11 +115,11 @@ export default function ProfileScreen() {
     refreshInFlightRef.current = true;
     setLoading(true);
     try {
-      const latest = await refreshUser();
+      const latest = await refreshUserRef.current?.();
       if (latest) {
         syncForm(latest);
-      } else if (user) {
-        syncForm(user);
+      } else if (userRef.current) {
+        syncForm(userRef.current);
       }
     } catch (error) {
       console.error('ProfileScreen -> erro ao carregar perfil', error);
@@ -118,7 +128,7 @@ export default function ProfileScreen() {
       refreshInFlightRef.current = false;
       setLoading(false);
     }
-  }, [refreshUser, syncForm, user]);
+  }, [syncForm]);
 
   useEffect(() => {
     if (isFocused) {
@@ -127,8 +137,10 @@ export default function ProfileScreen() {
   }, [isFocused, loadProfile]);
 
   useEffect(() => {
-    syncForm(user);
-  }, [user, syncForm]);
+    if (!isEditing) {
+      syncForm(user);
+    }
+  }, [user, syncForm, isEditing]);
 
   const handleChange = (key: keyof Omit<FormState, 'address'>, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -151,8 +163,8 @@ export default function ProfileScreen() {
   };
 
   const handleSave = async () => {
-    if (!user?.id) {
-      toast.showError('Erro', 'Não foi possível identificar o usuário logado.');
+    if (!user) {
+      toast.showError('Erro', 'Você precisa estar autenticado para atualizar o perfil.');
       return;
     }
 
@@ -166,7 +178,7 @@ export default function ProfileScreen() {
       return;
     }
 
-  const updates: UpdateUserRequest = {};
+    const updates: UpdateUserRequest = {};
 
     if (formData.name.trim() !== (user.name ?? '').trim()) {
       updates.name = formData.name.trim();

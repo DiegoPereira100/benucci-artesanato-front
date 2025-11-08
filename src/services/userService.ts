@@ -72,6 +72,18 @@ const userService = {
     }
   },
 
+  getUserByEmail: async (email: string): Promise<User> => {
+    try {
+      const encoded = encodeURIComponent(email);
+      console.log('userService.getUserByEmail -> fetching /users/email/' + encoded);
+      const res = await ApiService.instance.get(`/users/email/${encoded}`);
+      return normalizeUser(res.data);
+    } catch (error: any) {
+      console.error('userService.getUserByEmail -> error', error?.response ?? error);
+      throw error;
+    }
+  },
+
   updateUser: async (id: number, payload: UpdateUserRequest): Promise<User> => {
     try {
       const requestBody: Record<string, unknown> = {};

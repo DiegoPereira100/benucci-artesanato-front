@@ -40,6 +40,43 @@ const hasUserChanged = (current: User | null, next: User): boolean => {
   );
 };
 
+const decodeUserIdFromToken = (token: string): number | null => {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    let decodedPayload: string;
+
+    if (typeof atob === 'function') {
+      decodedPayload = atob(base64);
+    } else {
+      const globalBuffer = (globalThis as any)?.Buffer;
+      if (globalBuffer) {
+        decodedPayload = globalBuffer.from(base64, 'base64').toString('utf-8');
+      } else {
+        console.warn('decodeUserIdFromToken -> nenhum decodificador base64 disponível');
+        return null;
+      }
+    }
+
+    const payload = JSON.parse(decodedPayload);
+    const rawId = payload?.id ?? payload?.userId ?? payload?.user_id ?? payload?.userID;
+
+    if (rawId === undefined || rawId === null) {
+      return null;
+    }
+
+    const numericId = typeof rawId === 'string' ? parseInt(rawId, 10) : Number(rawId);
+    return Number.isFinite(numericId) && numericId > 0 ? numericId : null;
+  } catch (error) {
+    console.error('decodeUserIdFromToken -> erro ao extrair ID do token:', error);
+    return null;
+  }
+};
+
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -254,18 +291,88 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const resolveUserAndId = useCallback(async (): Promise<{ stored: User | null; id: number | null }> => {
+    const stored = user ?? (await authService.getUser());
+    let resolvedId = stored?.id && stored.id > 0 ? stored.id : null;
+    let workingUser = stored ?? null;
+
+    if (!resolvedId) {
+      const token = await authService.getToken();
+      const decodedId = token ? decodeUserIdFromToken(token) : null;
+      if (decodedId && decodedId > 0) {
+        resolvedId = decodedId;
+      }
+    }
+
+    if (!resolvedId && workingUser?.email) {
+      try {
+        const fetched = await userService.getUserByEmail(workingUser.email);
+        if (fetched?.id && fetched.id > 0) {
+          resolvedId = fetched.id;
+          workingUser = fetched;
+          if (!user || hasUserChanged(user, fetched)) {
+            setUser(fetched);
+          }
+          try {
+            await authService.saveUser(fetched);
+          } catch (saveError) {
+            console.warn('resolveUserAndId -> falha ao persistir usuário recuperado por email:', saveError);
+          }
+        }
+      } catch (error) {
+        console.warn('resolveUserAndId -> erro ao buscar usuário por e-mail:', error);
+      }
+    }
+
+    if (resolvedId && workingUser && workingUser.id !== resolvedId) {
+      const enrichedUser = { ...workingUser, id: resolvedId } as User;
+      workingUser = enrichedUser;
+      if (!user || hasUserChanged(user, enrichedUser)) {
+        setUser(enrichedUser);
+      }
+      try {
+        await authService.saveUser(enrichedUser);
+      } catch (saveError) {
+        console.warn('resolveUserAndId -> falha ao persistir usuário enriquecido:', saveError);
+      }
+    }
+
+    if (!workingUser && resolvedId) {
+      try {
+        const fetched = await userService.getUserById(resolvedId);
+        workingUser = fetched;
+        if (!user || hasUserChanged(user, fetched)) {
+          setUser(fetched);
+        }
+        try {
+          await authService.saveUser(fetched);
+        } catch (saveError) {
+          console.warn('resolveUserAndId -> falha ao persistir usuário recuperado por id:', saveError);
+        }
+      } catch (error) {
+        console.warn('resolveUserAndId -> erro ao buscar usuário por id:', error);
+      }
+    }
+
+    return { stored: workingUser ?? null, id: resolvedId && resolvedId > 0 ? resolvedId : null };
+  }, [user]);
+
   const refreshUserProfile = useCallback(async (): Promise<User | null> => {
     try {
-      const stored = user ?? (await authService.getUser());
-      const userId = stored?.id;
-      if (!userId) {
+      const { stored, id } = await resolveUserAndId();
+      if (!id) {
         console.warn('refreshUserProfile -> no user id available');
         return null;
       }
 
-      const latest = await userService.getUserById(userId);
-      if (!hasUserChanged(user, latest)) {
-        return user;
+      const latest = await userService.getUserById(id);
+      const referenceUser = stored ?? user;
+
+      if (!hasUserChanged(referenceUser, latest)) {
+        if (!referenceUser) {
+          setUser(latest);
+        }
+        return referenceUser ?? latest;
       }
 
       await authService.saveUser(latest);
@@ -275,13 +382,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Erro ao atualizar dados do usuário:', error);
       return null;
     }
-  }, [user]);
+  }, [resolveUserAndId, user]);
 
   const updateProfile = useCallback(async (updates: UpdateUserRequest): Promise<User | null> => {
     try {
-      const stored = user ?? (await authService.getUser());
-      const userId = stored?.id;
-      if (!userId) {
+      const { id } = await resolveUserAndId();
+      if (!id) {
         console.warn('updateProfile -> no user id available');
         return null;
       }
@@ -291,7 +397,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         payload.type = payload.type.toUpperCase() as 'USER' | 'ADMIN';
       }
 
-      const updated = await userService.updateUser(userId, payload);
+      const updated = await userService.updateUser(id, payload);
       await authService.saveUser(updated);
       setUser(updated);
       return updated;
@@ -299,7 +405,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Erro ao salvar perfil do usuário:', error);
       throw error;
     }
-  }, [user]);
+  }, [resolveUserAndId]);
 
   return (
     <AuthContext.Provider

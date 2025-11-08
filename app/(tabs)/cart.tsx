@@ -26,7 +26,7 @@ import { OrderRequestDTO } from '@/services/api';
 export default function CartScreen() {
   const router = useRouter();
   const { cartItems, updateItemQuantity, removeFromCart, cartTotal, totalItems, reloadCart, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [confirmVisible, setConfirmVisible] = React.useState(false);
   const [confirmTarget, setConfirmTarget] = React.useState<{ id: number; name: string } | null>(null);
   const [checkoutLoading, setCheckoutLoading] = React.useState(false);
@@ -92,11 +92,20 @@ export default function CartScreen() {
       try {
         setCheckoutLoading(true);
 
+        const baseUser = user?.id && user.id > 0 ? user : await refreshUser();
+        if (!baseUser?.id || baseUser.id <= 0) {
+          toast.showError(
+            'Usuário não identificado',
+            'Não foi possível identificar o usuário logado. Faça login novamente antes de finalizar a compra.',
+          );
+          return;
+        }
+
         // Montar payload esperado pelo backend
         const items = cartItems.map(ci => ({ productId: ci.product.id, quantity: ci.quantity }));
 
         const orderPayload: OrderRequestDTO = {
-          userId: user?.id ?? 0,
+          userId: baseUser.id,
           deliveryType: 'delivery',
           deliveryAddress,
           paymentMethod: 'MERCADO_PAGO',
@@ -156,8 +165,10 @@ export default function CartScreen() {
         }
 
       } catch (e: any) {
-        console.error('Erro ao criar pedido/checkout:', e);
-        toast.showError('Erro no pagamento', e?.message || 'Erro ao processar pagamento');
+        const errorData = e?.response?.data;
+        console.error('Erro ao criar pedido/checkout:', errorData || e);
+        const errorMessage = errorData?.message || errorData?.error || e?.message || 'Erro ao processar pagamento';
+        toast.showError('Erro no pagamento', errorMessage);
       } finally {
         setCheckoutLoading(false);
       }
