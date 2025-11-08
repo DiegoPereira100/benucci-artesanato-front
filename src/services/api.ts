@@ -2,17 +2,16 @@
 
 import axios, { AxiosInstance } from "axios";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, API_TIMEOUT } from '@env';
 import { Product } from '@/types/product';
 
 class ApiService {
   private api: AxiosInstance;
   private publicApi: AxiosInstance;
-
+  private baseURL = 'https://benucci-artesanato.onrender.com/'
   constructor() {
     // API com autenticação (para rotas protegidas)
-    const resolvedBaseURL = API_BASE_URL?.trim() || 'https://benucci-artesanato.onrender.com/';
-    const timeoutMs = Number(API_TIMEOUT) || 15000;
+    const resolvedBaseURL = 'https://benucci-artesanato.onrender.com/';
+    const timeoutMs = Number(3600000) || 15000;
     console.log('ApiService -> resolved base URL:', resolvedBaseURL, 'timeout:', timeoutMs);
     this.api = axios.create({
       baseURL: resolvedBaseURL,
@@ -141,7 +140,7 @@ class ApiService {
       // Tenta com token primeiro, se falhar tenta sem
       const token = await this.getToken();
       const apiToUse = token ? this.api : this.publicApi;
-      
+
       const response = await apiToUse.get<CategoryDTO[]>('/categories');
       console.log('ApiService.getAllCategories -> categorias encontradas:', response.data.length);
       return response.data;
@@ -224,7 +223,7 @@ class ApiService {
       console.log('ApiService.getAllProducts -> token exists:', !!token);
 
       const response = await apiToUse.get<ProductDTO[]>('/products');
-      
+
       // Mapear do formato do backend para o formato do frontend
       return response.data.map(dto => {
         const categoryName = dto.category?.name?.trim() || 'Sem categoria';
@@ -247,7 +246,7 @@ class ApiService {
         try {
           console.log('Tentando buscar produtos sem autenticação...');
           const response = await this.publicApi.get<ProductDTO[]>('/products');
-          
+
           return response.data.map(dto => {
             const categoryName = dto.category?.name?.trim() || 'Sem categoria';
             return {
@@ -266,7 +265,7 @@ class ApiService {
           throw publicError;
         }
       }
-      
+
       console.error('Erro ao buscar produtos:', error);
       throw error;
     }
@@ -279,10 +278,10 @@ class ApiService {
     try {
       const token = await this.getToken();
       const apiToUse = token ? this.api : this.publicApi;
-      
+
       const response = await apiToUse.get<ProductDTO>(`/products/${id}`);
       const dto = response.data;
-      
+
       const categoryName = dto.category?.name?.trim() || 'Sem categoria';
       return {
         id: dto.id,
@@ -299,7 +298,7 @@ class ApiService {
         try {
           const response = await this.publicApi.get<ProductDTO>(`/products/${id}`);
           const dto = response.data;
-          
+
           const categoryName = dto.category?.name?.trim() || 'Sem categoria';
           return {
             id: dto.id,
@@ -316,7 +315,7 @@ class ApiService {
           throw publicError;
         }
       }
-      
+
       console.error('Erro ao buscar produto:', error);
       throw error;
     }
@@ -332,7 +331,7 @@ class ApiService {
 
       const token = await this.getToken();
       if (token) {
-        const masked = `${token.slice(0,6)}...${token.slice(-6)}`;
+        const masked = `${token.slice(0, 6)}...${token.slice(-6)}`;
         console.log('ApiService.createProduct -> token (masked):', masked);
       } else {
         console.log('ApiService.createProduct -> sem token no storage');
@@ -380,7 +379,7 @@ class ApiService {
       return trimmed;
     }
 
-    const base = (API_BASE_URL || '').replace(/\/$/, '');
+    const base = (this.baseURL || '').replace(/\/$/, '');
     if (trimmed.startsWith('/')) {
       return `${base}${trimmed}`;
     }

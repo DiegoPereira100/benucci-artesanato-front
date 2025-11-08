@@ -39,10 +39,8 @@
     "@types/babel__core": "^7.20.5",
     "@types/lodash": "^4.17.20",
     "@types/react": "~19.1.0",
-    "@types/react-native-dotenv": "^0.2.2",
     "expo-module-scripts": "^5.0.7",
     "metro-react-native-babel-preset": "^0.77.0",
-    "react-native-dotenv": "^3.4.11",
     "typescript": "~5.9.3"
   },
   "private": true

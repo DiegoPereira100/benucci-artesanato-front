@@ -5,7 +5,6 @@ import authService from '../services/auth';
 import userService from '../services/userService';
 import { User, LoginRequest, RegisterRequest, UpdateUserRequest } from '../types/auth';
 import { parseAddress, serializeAddress, hasAddressInformation, addressPartsAreEqual } from '../utils/address';
-import { API_BASE_URL } from '@env';
 
 interface AuthContextData {
   user: User | null;
@@ -119,34 +118,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   async function login(credentials: LoginRequest) {
-    console.log(API_BASE_URL)
     try {
       console.log('=== DEBUG LOGIN no useAuth ===');
       console.log('Chamando authService.login...');
-      
+
       const response = await authService.login(credentials);
       console.log('Response do login:', typeof response);
-      
+
       let userData: User;
-      
+
       if (typeof response === 'string') {
         // Response é um JWT token - vamos decodificar
         console.log('Decodificando JWT token...');
-        
+
         try {
           const token = response as string;
-          
+
           // Decodifica o payload do JWT (parte do meio)
           const base64Url = token.split('.')[1];
           const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
           const payload = JSON.parse(atob(base64));
           console.log('Payload do JWT:', payload);
-          
+
           // ✅ CORREÇÃO: O backend retorna 'role' com valores 'admin' ou 'customer'
           // Precisamos mapear para o formato esperado pelo frontend
           const userRole = payload.role === 'admin' ? 'ADMIN' : 'USER';
           const addressString = toStoredAddressString(payload.address);
-          
+
           // Cria o objeto user a partir do payload
           userData = {
             id: payload.id,
@@ -157,17 +155,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
             phoneNumber: payload.phoneNumber || '',
             address: addressString,
           };
-          
+
           console.log('✅ Dados do usuário extraídos:', userData);
           setUser(userData);
-          
+
           return userData;
-          
+
         } catch (decodeError) {
           console.error('Erro ao decodificar JWT:', decodeError);
           throw new Error('Erro ao processar dados de autenticação');
         }
-        
+
       } else if (response && typeof response === 'object' && 'user' in response) {
         // Caso seja um objeto com user (fallback)
         console.log('Response é objeto com user');
@@ -189,7 +187,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('❌ Formato de response não reconhecido');
         throw new Error('Formato de resposta inválido');
       }
-      
+
     } catch (error: any) {
       console.error('Erro no login:', error);
       throw error;
@@ -201,7 +199,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('=== DEBUG REGISTER no useAuth ===');
       const response = await authService.register(userData);
       console.log('Response do register:', response);
-      
+
       // Verificar se o registro faz login automático
       if (response.token && response.user) {
         console.log('Registro fez login automático com token');
@@ -223,10 +221,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const base64Url = token.split('.')[1];
           const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
           const payload = JSON.parse(atob(base64));
-          
+
           const userRole = (payload.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
           const addressString = toStoredAddressString(payload.address);
-          
+
           const userData: User = {
             id: payload.id,
             email: payload.sub,
@@ -236,7 +234,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             phoneNumber: payload.phoneNumber || '',
             address: addressString,
           };
-          
+
           try {
             await authService.saveUser(userData);
           } catch (e) {
@@ -249,7 +247,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else if (response && typeof response === 'object') {
         // Se retorna diretamente os dados do usuário
         const responseObj = response as any;
-        
+
         if (responseObj.id && responseObj.email) {
           console.log('Registro retornou dados do usuário diretamente');
           const userRole = (responseObj.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
@@ -275,7 +273,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         console.log('Registro não fez login automático');
       }
-      
+
     } catch (error: any) {
       console.error('Erro no cadastro:', error);
       throw error;
