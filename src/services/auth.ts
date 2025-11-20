@@ -1,7 +1,7 @@
 // src/services/auth.ts
 import apiService from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LoginRequest, RegisterRequest, AuthResponse, User } from '../types/auth';
+import { LoginRequest, RegisterRequest, AuthResponse, User, UserRole } from '../types/auth';
 import { parseAddress, sanitizeAddressParts, serializeAddress, hasAddressInformation } from '../utils/address';
 
 const resolveAddressString = (incoming?: string, fallback?: string): string => {
@@ -18,6 +18,19 @@ const resolveAddressString = (incoming?: string, fallback?: string): string => {
   return '';
 };
 
+const normalizeUserRole = (value?: string, fallback: UserRole = 'USER'): UserRole => {
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.toString().toUpperCase().replace('ROLE_', '');
+  return normalized === 'ADMIN' ? 'ADMIN' : 'USER';
+};
+
+const mapRoleForBackend = (value?: string): 'admin' | 'user' => {
+  return normalizeUserRole(value) === 'ADMIN' ? 'admin' : 'user';
+};
+
 class AuthService {
   // Decodifica JWT e retorna dados básicos
   private decodeJWT(token: string): Partial<User> | null {
@@ -29,14 +42,7 @@ class AuthService {
       console.log('📋 Payload do JWT decodificado:', payload);
 
       // Prioriza 'type' do JWT, depois 'role' (removendo ROLE_), default 'USER'
-      let userType: 'USER' | 'ADMIN' = 'USER';
-      
-      if (payload.type) {
-        userType = payload.type.toUpperCase() as 'USER' | 'ADMIN';
-      } else if (payload.role) {
-        const cleanRole = payload.role.replace('ROLE_', '').toUpperCase();
-        userType = cleanRole as 'USER' | 'ADMIN';
-      }
+      const userType: UserRole = normalizeUserRole(payload.type ?? payload.role);
 
       return {
         id: payload.id,
@@ -328,7 +334,17 @@ class AuthService {
     try {
       console.log('📝 register -> iniciando');
 
-      const response = await apiService.instance.post('/auth/register', userData);
+      const backendPayload = {
+        name: userData.name,
+        email: userData.email,
+        password: userData.password,
+        cpf: userData.cpf,
+        phoneNumber: userData.phoneNumber,
+        address: userData.address,
+        role: mapRoleForBackend(userData.role ?? userData.type),
+      };
+
+      const response = await apiService.instance.post('/auth/register', backendPayload);
       console.log('📥 register response:', response.data);
 
       // Backend deve retornar: { token: '...', user: {...} }
@@ -348,7 +364,9 @@ class AuthService {
 
       // Normaliza o user do backend
       if (userFromBackend) {
-        userFromBackend.type = (userFromBackend.type?.toUpperCase() || userData.type) as 'USER' | 'ADMIN';
+        const normalizedType = normalizeUserRole(userFromBackend.role ?? userFromBackend.type, userData.type);
+        userFromBackend.type = normalizedType;
+        userFromBackend.role = normalizedType;
         userFromBackend.address = resolveAddressString(userFromBackend.address);
         await this.saveUser(userFromBackend);
         return { token, user: userFromBackend };
@@ -365,11 +383,13 @@ class AuthService {
       }
 
       // Último fallback: usa dados do registro
+      const fallbackType = userData.role ?? userData.type;
       const fallbackUser: User = {
         id: decoded?.id || Date.now(),
         email: userData.email,
         name: userData.name,
-        type: userData.type,
+        type: fallbackType,
+        role: fallbackType,
         cpf: userData.cpf,
         phoneNumber: userData.phoneNumber,
         address: resolveAddressString(userData.address),

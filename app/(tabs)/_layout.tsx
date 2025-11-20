@@ -25,6 +25,9 @@ export default function TabLayout() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const bottomInset = insets.bottom || 0;
+  const normalizedRole = (user?.role ?? user?.type ?? '').toString().toUpperCase();
+  const isAdmin = normalizedRole === 'ADMIN';
+  const adminHref = isAdmin ? '/(tabs)/admin' : null;
 
   // Adjustments to make tab bar visible above soft navigation buttons and on web
   const computedTabBarStyle: any = {
@@ -114,7 +117,7 @@ export default function TabLayout() {
           title: 'Dashboard',
           tabBarLabel: 'Dashboard',
           headerShown: false,
-          href: user?.type === 'ADMIN' ? '/admin' : null, // Oculta a tab se não for admin
+          href: adminHref,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="shield-checkmark-outline" size={size + 2} color={color} />
           ),
