@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -178,13 +178,16 @@ export default function RegisterScreen() {
       const sanitizedAddress = sanitizeAddressParts(address);
       const serializedAddress = serializeAddress(sanitizedAddress);
 
+      const normalizedType = type === 'admin' ? 'ADMIN' : 'USER';
+
       // Backend expects type in uppercase ('USER' | 'ADMIN'), convert before sending
       const payload: RegisterRequest = {
         ...rest,
         cpf: cleanedCpf,
         phoneNumber: cleanedPhone,
         address: serializedAddress,
-        type: type === 'admin' ? 'ADMIN' : 'USER',
+        type: normalizedType,
+        role: normalizedType,
       };
 
       await register(payload);

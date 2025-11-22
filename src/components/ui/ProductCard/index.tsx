@@ -11,6 +11,15 @@ type Props = {
 };
 
 export function ProductCard({ product, onPress, cardWidth }: Props) {
+  const classificationLabel = React.useMemo(() => {
+    const categoryLabel = product.category?.trim() || 'Sem categoria';
+    const subcategoryLabel = product.subcategoryName?.trim();
+    if (subcategoryLabel) {
+      return `${categoryLabel} - ${subcategoryLabel}`;
+    }
+    return categoryLabel;
+  }, [product.category, product.subcategoryName]);
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -34,6 +43,10 @@ export function ProductCard({ product, onPress, cardWidth }: Props) {
 
         <Text style={styles.name} numberOfLines={2}>
           {product.name}
+        </Text>
+
+        <Text style={styles.meta} numberOfLines={2}>
+          {classificationLabel}
         </Text>
 
         <Text style={styles.price}>R$ {product.price.toFixed(2)}</Text>

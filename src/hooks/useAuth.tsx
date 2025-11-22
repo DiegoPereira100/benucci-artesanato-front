@@ -25,6 +25,20 @@ const toStoredAddressString = (value?: string): string => {
   return hasAddressInformation(parsed) ? serializeAddress(parsed) : '';
 };
 
+const normalizeRoleValue = (value?: string | null): 'ADMIN' | 'USER' => {
+  if (!value) {
+    return 'USER';
+  }
+
+  const normalized = value
+    .toString()
+    .trim()
+    .toUpperCase()
+    .replace(/^ROLE_/, '');
+
+  return normalized === 'ADMIN' ? 'ADMIN' : 'USER';
+};
+
 const hasUserChanged = (current: User | null, next: User): boolean => {
   if (!current) return true;
   const addressChanged = !addressPartsAreEqual(parseAddress(current.address), parseAddress(next.address));
@@ -96,10 +110,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const userData = await authService.getUser();
         if (userData) {
           // normaliza o tipo salvo (pode vir como 'CUSTOMER' do passado)
-          const normalizedType = (userData.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          const normalizedType = normalizeRoleValue(userData.role ?? userData.type);
           const normalizedAddress = toStoredAddressString(userData.address);
-          if (userData.type !== normalizedType) {
-            const updated = { ...userData, type: normalizedType, address: normalizedAddress } as User;
+          if (userData.type !== normalizedType || userData.role !== normalizedType) {
+            const updated = { ...userData, type: normalizedType, role: normalizedType, address: normalizedAddress } as User;
             await authService.saveUser(updated);
             setUser(updated);
           } else if (userData.address !== normalizedAddress) {
@@ -144,7 +158,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           // ✅ CORREÇÃO: O backend retorna 'role' com valores 'admin' ou 'customer'
           // Precisamos mapear para o formato esperado pelo frontend
-          const userRole = payload.role === 'admin' ? 'ADMIN' : 'USER';
+          const userRole = normalizeRoleValue(payload.role ?? payload.type ?? payload.userType);
           const addressString = toStoredAddressString(payload.address);
           
           // Cria o objeto user a partir do payload
@@ -153,6 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             email: payload.sub, // 'sub' é o email no JWT
             name: payload.name || payload.email, // fallback caso name não exista
             type: userRole, // ✅ Mapeia 'admin'/'customer' para 'ADMIN'/'USER'
+            role: userRole,
             cpf: payload.cpf || '',
             phoneNumber: payload.phoneNumber || '',
             address: addressString,
@@ -174,9 +189,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const responseObj = response as any;
         const rawUser = responseObj.user as User;
         // normaliza tipo
-        const normalizedType = (rawUser.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+        const normalizedType = normalizeRoleValue(rawUser.role ?? rawUser.type);
         const normalizedAddress = toStoredAddressString(rawUser.address);
-        userData = { ...rawUser, type: normalizedType, address: normalizedAddress } as User;
+        userData = { ...rawUser, type: normalizedType, role: normalizedType, address: normalizedAddress } as User;
         // persiste a versão normalizada
         try {
           await authService.saveUser(userData);
@@ -206,9 +221,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.token && response.user) {
         console.log('Registro fez login automático com token');
         const rawUser = response.user as User;
-        const normalizedType = (rawUser.type || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+        const normalizedType = normalizeRoleValue(rawUser.role ?? rawUser.type);
         const normalizedAddress = toStoredAddressString(rawUser.address);
-        const normalizedUser = { ...rawUser, type: normalizedType, address: normalizedAddress } as User;
+        const normalizedUser = { ...rawUser, type: normalizedType, role: normalizedType, address: normalizedAddress } as User;
         try {
           await authService.saveUser(normalizedUser);
         } catch (e) {
@@ -224,7 +239,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
           const payload = JSON.parse(atob(base64));
           
-          const userRole = (payload.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          const userRole = normalizeRoleValue(payload.role ?? payload.type);
           const addressString = toStoredAddressString(payload.address);
           
           const userData: User = {
@@ -232,6 +247,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             email: payload.sub,
             name: payload.name || payload.email,
             type: userRole,
+            role: userRole,
             cpf: payload.cpf || '',
             phoneNumber: payload.phoneNumber || '',
             address: addressString,
@@ -252,13 +268,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         if (responseObj.id && responseObj.email) {
           console.log('Registro retornou dados do usuário diretamente');
-          const userRole = (responseObj.role || '').toString().toLowerCase() === 'admin' ? 'ADMIN' : 'USER';
+          const userRole = normalizeRoleValue(responseObj.role ?? responseObj.type);
           const addressString = toStoredAddressString(responseObj.address);
           const userData: User = {
             id: responseObj.id,
             email: responseObj.email,
             name: responseObj.name,
             type: userRole,
+            role: userRole,
             cpf: responseObj.cpf || '',
             phoneNumber: responseObj.phoneNumber || '',
             address: addressString,

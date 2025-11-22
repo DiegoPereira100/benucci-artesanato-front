@@ -25,13 +25,19 @@ import { parseAddress, formatAddressSummary } from '../../src/utils/address';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { ProductModal } from '@/components/ui/ProductModal';
 import { productService } from '@/services/productService';
+import { categoryService, CategoryDTO } from '@/services/categoryService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ExploreScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [activeCategory, setActiveCategory] = useState('Tudo');
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ id: number | null; name: string }>>([
+    { id: null, name: 'Tudo' },
+  ]);
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | null>(null);
+  const [alphaSort, setAlphaSort] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,11 +85,49 @@ export default function ExploreScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, { id: number; name: string }>>({});
 
-  const categories = ['Tudo', 'Mandala', 'Chaveiro', 'Porta chaves', 'Gato', 'Imã'];
-
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const categories: CategoryDTO[] | undefined = await categoryService.getAllCategories();
+      if (!categories || categories.length === 0) {
+        setCategoryOptions([{ id: null, name: 'Tudo' }]);
+        if (activeCategoryId !== null) {
+          setActiveCategoryId(null);
+        }
+        return;
+      }
+
+      const seen = new Set<number>();
+      const normalized = categories.reduce<Array<{ id: number; name: string }>>((acc, category) => {
+        const parsedId = category?.id ? Number(category.id) : NaN;
+        const label = category?.name?.trim();
+        if (!label || Number.isNaN(parsedId) || parsedId <= 0 || seen.has(parsedId)) {
+          return acc;
+        }
+        seen.add(parsedId);
+        acc.push({ id: parsedId, name: label });
+        return acc;
+      }, []);
+
+      setCategoryOptions([{ id: null, name: 'Tudo' }, ...normalized]);
+      if (activeCategoryId !== null && !seen.has(activeCategoryId)) {
+        setActiveCategoryId(null);
+      }
+    } catch (error) {
+      console.warn('products.tsx -> failed to load categories', error);
+      setCategoryOptions([{ id: null, name: 'Tudo' }]);
+      if (activeCategoryId !== null) {
+        setActiveCategoryId(null);
+      }
+    }
+  }, [activeCategoryId]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   useEffect(() => {
     const loadOverrides = async () => {
@@ -112,7 +156,7 @@ export default function ExploreScreen() {
 
   useEffect(() => {
     filterProducts();
-  }, [products, activeCategory, searchQuery]);
+  }, [products, activeCategoryId, searchQuery, priceSort, alphaSort]);
 
   const extractLocation = useCallback((address: string) => {
     const parsed = parseAddress(address);
@@ -182,6 +226,7 @@ export default function ExploreScreen() {
         return product;
       });
       setProducts(patchedProducts);
+      await loadCategories();
       
       if (productsData.length === 0) {
         setError('Nenhum produto disponível no momento');
@@ -247,6 +292,7 @@ export default function ExploreScreen() {
         return product;
       });
       setProducts(patchedProducts);
+      await loadCategories();
     } catch (error: any) {
       console.error('Erro ao atualizar produtos:', error);
       
@@ -263,14 +309,56 @@ export default function ExploreScreen() {
 
   const filterProducts = useCallback(() => {
     let filtered = [...products];
-    if (activeCategory !== 'Tudo') filtered = filtered.filter(p => p.category === activeCategory);
-    if (searchQuery) filtered = filtered.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (activeCategoryId !== null) {
+      filtered = filtered.filter((product) => {
+        const override = categoryOverrides[String(product.id)];
+        const productCategoryId = product.categoryId ?? override?.id ?? null;
+        if (productCategoryId == null) {
+          return false;
+        }
+        return Number(productCategoryId) === activeCategoryId;
+      });
+    }
+
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (normalizedQuery) {
+      filtered = filtered.filter((product) => {
+        const pool = [product.name, product.category, product.subcategoryName]
+          .filter(Boolean)
+          .map((value) => value!.toString().toLowerCase());
+        return pool.some((value) => value.includes(normalizedQuery));
+      });
+    }
+
+    if (alphaSort) {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (priceSort === 'asc') {
+      filtered.sort((a, b) => a.price - b.price);
+    } else if (priceSort === 'desc') {
+      filtered.sort((a, b) => b.price - a.price);
+    }
+
     setFilteredProducts(filtered);
-  }, [products, activeCategory, searchQuery]);
+  }, [products, activeCategoryId, searchQuery, priceSort, alphaSort, categoryOverrides]);
 
   const handleProductPress = useCallback((product: Product) => {
     setSelectedProduct(product);
     setModalVisible(true);
+  }, []);
+
+  const togglePriceSort = useCallback((direction: 'asc' | 'desc') => {
+    setPriceSort((current) => (current === direction ? null : direction));
+    setAlphaSort(false);
+  }, []);
+
+  const toggleAlphaSort = useCallback(() => {
+    setAlphaSort((current) => {
+      if (!current) {
+        setPriceSort(null);
+      }
+      return !current;
+    });
   }, []);
 
   const handleAddToCart = (product: Product, quantity: number) => {
@@ -356,32 +444,59 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.sortRow}>
+        <Text style={styles.sortLabel}>Ordenar produtos</Text>
+        <View style={styles.sortButtons}>
+          <TouchableOpacity
+            style={[styles.sortButton, priceSort === 'asc' && styles.sortButtonActive]}
+            onPress={() => togglePriceSort('asc')}
+          >
+            <Ionicons
+              name="arrow-up-outline"
+              size={16}
+              color={priceSort === 'asc' ? '#fff' : '#4B5563'}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, priceSort === 'desc' && styles.sortButtonActive]}
+            onPress={() => togglePriceSort('desc')}
+          >
+            <Ionicons
+              name="arrow-down-outline"
+              size={16}
+              color={priceSort === 'desc' ? '#fff' : '#4B5563'}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, alphaSort && styles.sortButtonActive]}
+            onPress={toggleAlphaSort}
+          >
+            <Text style={[styles.sortButtonLabel, alphaSort && styles.sortButtonLabelActive]}>A-Z</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.categorySection}>
         <Text style={styles.categoryTitle}>Categoria</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category}
-              onPress={() => setActiveCategory(category)}
-              style={[
-                styles.categoryBtn,
-                activeCategory === category && styles.categoryBtnActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.categoryText,
-                  activeCategory === category && styles.categoryTextActive,
-                ]}
+          {categoryOptions.map((option) => {
+            const isActive = activeCategoryId === option.id;
+            return (
+              <TouchableOpacity
+                key={option.id ?? 'all'}
+                onPress={() => setActiveCategoryId(option.id)}
+                style={[styles.categoryBtn, isActive && styles.categoryBtnActive]}
               >
-                {category}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text style={[styles.categoryText, isActive && styles.categoryTextActive]}>
+                  {option.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
     </View>
-  ), [user, location, searchQuery, activeCategory, totalItems, router, addressSummary]);
+  ), [user, location, searchQuery, categoryOptions, activeCategoryId, priceSort, alphaSort, totalItems, router, addressSummary, togglePriceSort, toggleAlphaSort]);
 
   const renderProduct = useCallback(({ item }: { item: Product }) => (
     <ProductCard
@@ -578,6 +693,48 @@ const styles = StyleSheet.create({
   filterBtn: {
     padding: 8,
     marginLeft: 8,
+  },
+  sortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  sortLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  sortButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sortButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#94A3B8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sortButtonActive: {
+    backgroundColor: '#00BCD4',
+    borderColor: '#00BCD4',
+  },
+  sortButtonLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  sortButtonLabelActive: {
+    color: '#FFFFFF',
   },
   categorySection: {
     marginBottom: 8,

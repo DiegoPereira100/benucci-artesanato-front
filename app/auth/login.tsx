@@ -58,13 +58,14 @@ export default function LoginScreen() {
       console.log('Dados do login:', data);
       setIsLoading(true);
 
-      await login(data);
+      const loggedUser = await login(data);
       console.log('=== LOGIN CONCLUÍDO ===');
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
       console.log('Tentando navegação manual como fallback...');
-      router.replace('/(tabs)/products');
+      const isAdmin = (loggedUser?.role ?? loggedUser?.type) === 'ADMIN';
+      router.replace(isAdmin ? '/(tabs)/admin' : '/(tabs)/products');
 
     } catch (error: any) {
       console.error('=== ERRO NO LOGIN ===');

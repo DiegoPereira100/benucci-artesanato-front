@@ -1,5 +1,7 @@
 // types/auth.ts
 
+export type UserRole = 'USER' | 'ADMIN';
+
 export interface User {
   id: number;
   name: string;
@@ -7,7 +9,8 @@ export interface User {
   cpf: string;
   phoneNumber: string;
   address: string;
-  type: 'USER' | 'ADMIN';
+  type: UserRole;
+  role?: UserRole;
 }
 
 export interface LoginRequest {
@@ -22,7 +25,8 @@ export interface RegisterRequest {
   cpf: string;
   phoneNumber: string;
   address: string;
-  type: 'USER' | 'ADMIN';
+  type: UserRole;
+  role?: UserRole;
 }
 
 export interface UpdateUserRequest {
@@ -32,7 +36,8 @@ export interface UpdateUserRequest {
   cpf?: string;
   phoneNumber?: string;
   address?: string;
-  type?: 'USER' | 'ADMIN';
+  type?: UserRole;
+  role?: UserRole;
 }
 
 export interface AuthResponse {

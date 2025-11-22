@@ -1,6 +1,6 @@
 // src/services/productService.ts
 
-import ApiService, { ProductDTO, CategoryDTO, CreateCategoryRequest } from './api';
+import ApiService, { ProductDTO, ProductPageFilters, ProductsPageResult } from './api';
 import { Product } from '@/types/product';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -13,11 +13,14 @@ export interface CreateProductPayload {
   description: string;
   price: number;
   stock: number;
-  imageUrl: string | null;
-  imageFile?: ProductImageFile | null;
-  categoryName: string;
   categoryId: number;
+  categoryName: string;
+  subcategoryId: number;
+  themeIds: number[];
+  images: ProductImageFile[];
 }
+
+export interface ProductPageResult extends ProductsPageResult {}
 
 const CATEGORY_OVERRIDES_STORAGE_KEY = '@product_category_overrides';
 
@@ -179,6 +182,10 @@ const applyOverrideToDto = (dto: ProductDTO, override?: CategoryOverride): Produ
     patched.categoryId = override.id;
   }
 
+  if (!patched.categoryName || patched.categoryName.trim().length === 0) {
+    patched.categoryName = override.name;
+  }
+
   if (!patched.category) {
     patched.category = { id: override.id, name: override.name };
   } else {
@@ -220,6 +227,19 @@ export const productService = {
     }
   },
 
+  getProductsPage: async (
+    page: number,
+    size: number,
+    filters?: ProductPageFilters,
+  ): Promise<ProductPageResult> => {
+    const response = await ApiService.getProductsPage(page, size, filters);
+    const overrides = await loadCategoryOverrides();
+    const items = response.items.map((product) =>
+      applyOverrideToProduct(product, overrides[String(product.id)]),
+    );
+    return { ...response, items };
+  },
+
   /** 
    * Buscar produto por ID
    */
@@ -252,10 +272,20 @@ export const productService = {
       console.log('productService.createProduct -> iniciando criação de produto...', formData);
 
       const categoryId = Number(formData.categoryId);
-      if (!Number.isFinite(categoryId) || !Number.isInteger(categoryId) || categoryId <= 0) {
-        const debugValue = formData.categoryId;
-        console.error('productService.createProduct -> categoria inválida recebida:', debugValue);
+      const subcategoryId = Number(formData.subcategoryId);
+      if (!Number.isFinite(categoryId) || categoryId <= 0) {
         throw new Error('Selecione uma categoria válida antes de salvar o produto.');
+      }
+      if (!Number.isFinite(subcategoryId) || subcategoryId <= 0) {
+        throw new Error('Selecione uma subcategoria válida antes de salvar o produto.');
+      }
+
+      const normalizedThemeIds = Array.from(
+        new Set((formData.themeIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)),
+      );
+
+      if (!Array.isArray(formData.images) || formData.images.length === 0) {
+        throw new Error('Selecione ao menos uma imagem do produto antes de salvar.');
       }
 
       const productData = {
@@ -263,111 +293,73 @@ export const productService = {
         description: formData.description.trim(),
         price: Number(formData.price),
         stock: Number(formData.stock),
-        imageUrl: formData.imageFile ? null : (formData.imageUrl ?? '').trim(),
-        category: {
-          id: categoryId,
-          name: formData.categoryName.trim(),
-        },
         categoryId,
+        categoryName: formData.categoryName.trim(),
+        subcategoryId,
+        themeIds: normalizedThemeIds,
       };
 
-      console.log('productService.createProduct -> dados formatados para API:', productData);
+      console.log('productService.createProduct -> payload normalizado:', productData);
 
-      const selectedCategory: CategoryOverride = {
-        id: productData.category.id,
-        name: productData.category.name,
-      };
-
-      if (formData.imageFile) {
-        const multipartData = new FormData();
-        multipartData.append('product', JSON.stringify(productData));
-        multipartData.append('categoryId', String(categoryId));
-        if ('file' in formData.imageFile) {
-          multipartData.append('imageFile', formData.imageFile.file, formData.imageFile.name);
-          multipartData.append('image', formData.imageFile.file, formData.imageFile.name);
+      const multipartData = new FormData();
+      multipartData.append('product', JSON.stringify(productData));
+      formData.images.forEach((file) => {
+        if ('file' in file) {
+          multipartData.append('images', file.file, file.name);
         } else {
-          const fileDescriptor = {
-            uri: formData.imageFile.uri,
-            name: formData.imageFile.name,
-            type: formData.imageFile.type,
-          } as any;
-          multipartData.append('imageFile', fileDescriptor);
-          multipartData.append('image', { ...fileDescriptor });
+          multipartData.append('images', {
+            uri: file.uri,
+            name: file.name,
+            type: file.type,
+          } as any);
         }
+      });
 
-        const response = await ApiService.instance.post<ProductDTO>('/products', multipartData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-        const fallbackDto: ProductDTO = {
-          id: NaN,
-          name: productData.name,
-          description: productData.description,
-          price: productData.price,
-          stock: productData.stock,
-          imageUrl: null,
-          categoryId: productData.categoryId,
-          category: { id: productData.category.id, name: productData.category.name },
-        };
+      const response = await ApiService.instance.post<ProductDTO>('/products', multipartData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-        const responseDto = ensureProductDto(response.data, 'createProduct(multipart)', fallbackDto);
-        const normalized = applyOverrideToDto(responseDto, selectedCategory);
-
-        let normalizedUploadId = Number((normalized as any)?.id);
-        if (!Number.isFinite(normalizedUploadId) || normalizedUploadId <= 0) {
-          const inferredId = await inferCreatedProductId(productData);
-          if (Number.isFinite(inferredId) && inferredId && inferredId > 0) {
-            normalizedUploadId = inferredId;
-            (normalized as any).id = inferredId;
-          }
-        }
-
-        if (Number.isFinite(normalizedUploadId) && normalizedUploadId > 0) {
-          await upsertCategoryOverride(normalizedUploadId, selectedCategory);
-          await syncOverrideCache(normalizedUploadId, selectedCategory);
-        } else {
-          console.warn('productService.createProduct -> produto criado via upload sem id válido, override não persistido');
-        }
-
-        console.log('productService.createProduct -> produto criado via upload!', normalized);
-        return normalized;
-      }
-
-      const createdProduct = await ApiService.createProduct(productData);
       const fallbackDto: ProductDTO = {
         id: NaN,
         name: productData.name,
         description: productData.description,
         price: productData.price,
         stock: productData.stock,
-        imageUrl: productData.imageUrl,
+        imageUrls: [],
         categoryId: productData.categoryId,
-        category: { id: productData.category.id, name: productData.category.name },
+        categoryName: productData.categoryName,
+        subcategoryId: productData.subcategoryId,
+        themeIds: productData.themeIds,
       };
 
-      const createdProductDto = ensureProductDto(createdProduct, 'createProduct(json)', fallbackDto);
-      const normalizedProduct = applyOverrideToDto(createdProductDto, selectedCategory);
+      const selectedCategory: CategoryOverride = {
+        id: productData.categoryId,
+        name: productData.categoryName,
+      };
 
-      let normalizedProductId = Number((normalizedProduct as any)?.id);
-      if (!Number.isFinite(normalizedProductId) || normalizedProductId <= 0) {
+      const responseDto = ensureProductDto(response.data, 'createProduct(multipart)', fallbackDto);
+      const normalized = applyOverrideToDto(responseDto, selectedCategory);
+
+      let normalizedUploadId = Number((normalized as any)?.id);
+      if (!Number.isFinite(normalizedUploadId) || normalizedUploadId <= 0) {
         const inferredId = await inferCreatedProductId(productData);
         if (Number.isFinite(inferredId) && inferredId && inferredId > 0) {
-          normalizedProductId = inferredId;
-          (normalizedProduct as any).id = inferredId;
+          normalizedUploadId = inferredId;
+          (normalized as any).id = inferredId;
         }
       }
 
-      if (Number.isFinite(normalizedProductId) && normalizedProductId > 0) {
-        await upsertCategoryOverride(normalizedProductId, selectedCategory);
-        await syncOverrideCache(normalizedProductId, selectedCategory);
+      if (Number.isFinite(normalizedUploadId) && normalizedUploadId > 0) {
+        await upsertCategoryOverride(normalizedUploadId, selectedCategory);
+        await syncOverrideCache(normalizedUploadId, selectedCategory);
       } else {
-        console.warn('productService.createProduct -> produto criado (json) sem id válido, override não persistido');
+        console.warn('productService.createProduct -> produto criado sem id válido, override não persistido');
       }
 
-      console.log('productService.createProduct -> produto criado com sucesso!', normalizedProduct);
-
-      return normalizedProduct;
+      console.log('productService.createProduct -> produto criado com sucesso!', normalized);
+      return normalized;
     } catch (error: any) {
       console.error('productService.createProduct -> erro ao criar produto:', error);
       
@@ -462,49 +454,5 @@ export const productService = {
   },
 };
 
-export const categoryService = {
-  /**
-   * Buscar todas as categorias
-   */
-  getAllCategories: async (): Promise<CategoryDTO[]> => {
-    try {
-      console.log('categoryService.getAllCategories -> buscando categorias...');
-      const categories = await ApiService.getAllCategories();
-      console.log('categoryService.getAllCategories -> categorias encontradas:', categories.length);
-      return categories;
-    } catch (error: any) {
-      console.error('categoryService.getAllCategories -> erro:', error?.response?.data ?? error?.message ?? String(error));
-      throw error;
-    }
-  },
-
-  /**
-   * Criar nova categoria (requer autenticação ADMIN)
-   */
-  createCategory: async (name: string): Promise<CategoryDTO> => {
-    try {
-      console.log('categoryService.createCategory -> criando categoria:', name);
-      const categoryData: CreateCategoryRequest = { name: name.trim() };
-      const createdCategory = await ApiService.createCategory(categoryData);
-      console.log('categoryService.createCategory -> categoria criada:', createdCategory);
-      return createdCategory;
-    } catch (error: any) {
-      console.error('categoryService.createCategory -> erro:', error);
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.message || error.response.data?.error || 'Erro ao criar categoria no servidor';
-        const err: any = new Error(errorMessage);
-        err.status = error.response.status;
-        throw err;
-      } else if (error.request) {
-        const err: any = new Error('Sem resposta do servidor. Verifique sua conexão.');
-        err.status = null;
-        throw err;
-      } else {
-        const err: any = new Error('Erro ao processar requisição: ' + error.message);
-        err.status = null;
-        throw err;
-      }
-    }
-  },
-};
+export { categoryService } from './categoryService';
+export type { ProductPageFilters };
