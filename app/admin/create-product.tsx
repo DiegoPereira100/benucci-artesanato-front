@@ -405,16 +405,30 @@ export default function CreateProductScreen() {
 
   const onSubmit = async (data: CreateProductFormData) => {
     if (!validateClassification()) {
-      toast.showError('Campos obrigatórios', 'Revise as seções destacadas antes de salvar.');
+      toast.showError(
+        'Campos obrigatórios',
+        'Revise as seções destacadas antes de salvar.'
+      );
       return;
     }
-    if (!selectedCategoryId || !selectedSubcategoryId) {
-      return;
-    }
+
+    if (!selectedCategoryId || !selectedSubcategoryId) return;
+
     try {
       setIsSubmitting(true);
-      const imageFiles = await prepareImageFiles(selectedImages);
-      const categoryName = categories.find((cat) => cat.id === selectedCategoryId)?.name ?? 'Categoria';
+
+      // Prepara as imagens corretamente usando prepareImageFiles
+      const imageFiles: ProductImageFile[] = await prepareImageFiles(selectedImages);
+
+      if (imageFiles.length === 0) {
+        toast.showError('Erro', 'Selecione ao menos uma imagem do produto.');
+        return;
+      }
+
+      const categoryName =
+        categories.find((cat) => cat.id === selectedCategoryId)?.name ?? 'Categoria';
+
+      // Monta o payload
       const payload: CreateProductPayload = {
         name: data.name.trim(),
         description: data.description.trim(),
@@ -426,19 +440,29 @@ export default function CreateProductScreen() {
         themeIds: selectedThemes,
         images: imageFiles,
       };
+
+      // Chama o service que já monta o FormData internamente
       await productService.createProduct(payload);
+
       toast.showSuccess('Produto criado', 'Seu produto foi cadastrado com sucesso.');
+
+      // Reset
       reset();
       setSelectedImages([]);
       setClassificationErrors({});
       router.back();
     } catch (error: any) {
       console.error('createProduct -> submit error', error);
-      toast.showError('Erro', error?.message || 'Não foi possível criar o produto.');
+      toast.showError(
+        'Erro',
+        error?.message || 'Não foi possível criar o produto.'
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
+
+
 
   const renderCategoryChips = () => (
     <ScrollView
