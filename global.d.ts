@@ -9,3 +9,4 @@ interface NodeRequire {
 }
 
 declare module 'expo-image-picker';
+declare module "merge-options";

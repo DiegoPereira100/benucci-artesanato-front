@@ -3,6 +3,7 @@
 import axios, { AxiosInstance } from "axios";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product } from '@/types/product';
+import { API_BASE_URL, API_TIMEOUT } from '@env';
 
 class ApiService {
   private api: AxiosInstance;
@@ -98,8 +99,8 @@ class ApiService {
 
   constructor() {
     // API com autenticação (para rotas protegidas)
-    const resolvedBaseURL = 'https://benucci-artesanato.onrender.com/';
-    const timeoutMs = Number(3600000) || 15000;
+    const resolvedBaseURL = (API_BASE_URL || "").trim().replace(/\/$/, "");
+    const timeoutMs = Number(API_TIMEOUT) || 15000;
     console.log('ApiService -> resolved base URL:', resolvedBaseURL, 'timeout:', timeoutMs);
     this.api = axios.create({
       baseURL: resolvedBaseURL,
@@ -228,14 +229,8 @@ class ApiService {
       const token = await this.getToken();
       const apiToUse = token ? this.api : this.publicApi;
 
-<<<<<<< HEAD
       const payload = await this.tryCategoryEndpoints(apiToUse, ['/categories/list', '/categories']);
       return payload;
-=======
-      const response = await apiToUse.get<CategoryDTO[]>('/categories');
-      console.log('ApiService.getAllCategories -> categorias encontradas:', response.data.length);
-      return response.data;
->>>>>>> origin/deploy-otimizado
     } catch (error: any) {
       console.error('ApiService.getAllCategories -> erro:', error);
       if (error?.response?.status === 403 || error?.response?.status === 401) {
@@ -460,28 +455,9 @@ class ApiService {
       console.log('ApiService.getAllProducts -> using apiToUse:', token ? 'authenticated' : 'public');
       console.log('ApiService.getAllProducts -> token exists:', !!token);
 
-<<<<<<< HEAD
       const response = await apiToUse.get('/products');
       const list = this.normalizeProductPayload(response.data);
       return list.map((dto) => this.mapProductDTO(dto));
-=======
-      const response = await apiToUse.get<ProductDTO[]>('/products');
-
-      // Mapear do formato do backend para o formato do frontend
-      return response.data.map(dto => {
-        const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-        return {
-          id: dto.id,
-          name: dto.name,
-          description: dto.description,
-          price: dto.price,
-          category: categoryName,
-          image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-          stock: dto.stock ?? 0,
-          categoryId: dto.category?.id ?? dto.categoryId ?? null,
-        };
-      });
->>>>>>> origin/deploy-otimizado
     } catch (error: any) {
       // Se falhar com token, tentar sem autenticação
       const status = error?.response?.status;
@@ -489,27 +465,9 @@ class ApiService {
       if (status === 403 || status === 401) {
         try {
           console.log('Tentando buscar produtos sem autenticação...');
-<<<<<<< HEAD
           const response = await this.publicApi.get('/products');
           const list = this.normalizeProductPayload(response.data);
           return list.map((dto) => this.mapProductDTO(dto));
-=======
-          const response = await this.publicApi.get<ProductDTO[]>('/products');
-
-          return response.data.map(dto => {
-            const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-            return {
-              id: dto.id,
-              name: dto.name,
-              description: dto.description,
-              price: dto.price,
-              category: categoryName,
-              image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-              stock: dto.stock ?? 0,
-              categoryId: dto.category?.id ?? dto.categoryId ?? null,
-            };
-          });
->>>>>>> origin/deploy-otimizado
         } catch (publicError) {
           console.error('Erro ao buscar produtos (público):', publicError);
           throw publicError;
@@ -561,47 +519,13 @@ class ApiService {
     try {
       const token = await this.getToken();
       const apiToUse = token ? this.api : this.publicApi;
-<<<<<<< HEAD
       const response = await apiToUse.get<ProductDTO>(`/products/${id}`);
       return this.mapProductDTO(response.data);
-=======
-
-      const response = await apiToUse.get<ProductDTO>(`/products/${id}`);
-      const dto = response.data;
-
-      const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-      return {
-        id: dto.id,
-        name: dto.name,
-        description: dto.description,
-        price: dto.price,
-        category: categoryName,
-        image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-        stock: dto.stock ?? 0,
-        categoryId: dto.category?.id ?? dto.categoryId ?? null,
-      };
->>>>>>> origin/deploy-otimizado
     } catch (error: any) {
       if (error?.response?.status === 403 || error?.response?.status === 401) {
         try {
           const response = await this.publicApi.get<ProductDTO>(`/products/${id}`);
-<<<<<<< HEAD
           return this.mapProductDTO(response.data);
-=======
-          const dto = response.data;
-
-          const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-          return {
-            id: dto.id,
-            name: dto.name,
-            description: dto.description,
-            price: dto.price,
-            category: categoryName,
-            image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-            stock: dto.stock ?? 0,
-            categoryId: dto.category?.id ?? dto.categoryId ?? null,
-          };
->>>>>>> origin/deploy-otimizado
         } catch (publicError) {
           console.error('Erro ao buscar produto (público):', publicError);
           throw publicError;
@@ -613,53 +537,6 @@ class ApiService {
     }
   }
 
-<<<<<<< HEAD
-=======
-  /**
-   * Criar produto (requer autenticação de admin)
-   */
-  async createProduct(productData: CreateProductRequest): Promise<ProductDTO> {
-    try {
-      console.log('ApiService.createProduct -> enviando dados para API:', productData);
-      console.log('ApiService.createProduct -> payload JSON:', JSON.stringify(productData));
-
-      const token = await this.getToken();
-      if (token) {
-        const masked = `${token.slice(0, 6)}...${token.slice(-6)}`;
-        console.log('ApiService.createProduct -> token (masked):', masked);
-      } else {
-        console.log('ApiService.createProduct -> sem token no storage');
-      }
-
-      const response = await this.api.post<ProductDTO>('/products', productData, {
-        headers: token
-          ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-          : { 'Content-Type': 'application/json' },
-      });
-      let payload: any = response.data;
-      if (typeof payload === 'string') {
-        try {
-          payload = JSON.parse(payload);
-        } catch (parseError) {
-          console.warn('ApiService.createProduct -> resposta não JSON recebida:', payload);
-          payload = { message: payload };
-        }
-      }
-      console.log('ApiService.createProduct -> produto criado com sucesso:', payload);
-      return payload;
-    } catch (error: any) {
-      console.error('ApiService.createProduct -> erro ao criar produto:', error);
-      if (error?.response?.data) {
-        console.error('ApiService.createProduct -> error body:', error.response.data);
-      }
-      if (error?.response?.status) {
-        console.error('ApiService.createProduct -> response status:', error.response.status);
-      }
-      throw error;
-    }
-  }
-
->>>>>>> origin/deploy-otimizado
   private resolveImageUrl(imageUrl?: string | null): string | null {
     if (!imageUrl) {
       return null;
@@ -674,7 +551,7 @@ class ApiService {
       return trimmed;
     }
 
-    const base = (this.baseURL || '').replace(/\/$/, '');
+    const base = (this.api.defaults.baseURL || '').replace(/\/$/, '');
     if (trimmed.startsWith('/')) {
       return `${base}${trimmed}`;
     }
