@@ -8,6 +8,94 @@ import { Product } from '@/types/product';
 class ApiService {
   private api: AxiosInstance;
   private publicApi: AxiosInstance;
+  private mapProductDTO(dto: ProductDTO): Product {
+    const categoryId = dto.categoryId ?? dto.category?.id ?? null;
+    const rawCategoryName = dto.categoryName ?? dto.category?.name ?? '';
+    const categoryName = rawCategoryName?.trim() || 'Sem categoria';
+    const mainImageCandidate = dto.mainImageUrl ?? dto.imageUrl ?? dto.imageUrls?.[0] ?? null;
+    const resolvedMainImage = this.resolveImageUrl(mainImageCandidate);
+    const gallery = (dto.imageUrls ?? [])
+      .map((url: string | null | undefined) => this.resolveImageUrl(url))
+      .filter((url): url is string => Boolean(url));
+
+    return {
+      id: dto.id,
+      name: dto.name,
+      description: dto.description,
+      price: dto.price,
+      category: categoryName,
+      image_url: resolvedMainImage,
+      stock: dto.stock ?? 0,
+      categoryId,
+      subcategoryId: dto.subcategoryId ?? null,
+      subcategoryName: dto.subcategoryName ?? null,
+      gallery,
+      themeIds: dto.themeIds ?? [],
+      themeNames: dto.themeNames ?? [],
+    };
+  }
+
+  private normalizeProductPayload(payload: any): ProductDTO[] {
+    if (!payload) {
+      return [];
+    }
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    if (Array.isArray(payload?.content)) {
+      return payload.content;
+    }
+    return [];
+  }
+
+  private extractPaginationMeta(payload: any): {
+    page: number;
+    size: number;
+    totalPages: number;
+    totalItems: number;
+  } {
+    const page = Number(payload?.number ?? payload?.page ?? payload?.currentPage ?? 0);
+    const size = Number(payload?.size ?? payload?.pageSize ?? payload?.perPage ?? 0);
+    const totalPages = Number(payload?.totalPages ?? payload?.pages ?? 0);
+    const totalItems = Number(payload?.totalElements ?? payload?.totalItems ?? payload?.total ?? 0);
+    return { page, size, totalPages, totalItems };
+  }
+
+  private async tryCategoryEndpoints(client: AxiosInstance, endpoints: string[]): Promise<CategoryDTO[]> {
+    let lastError: any = null;
+    for (const path of endpoints) {
+      try {
+        console.log('ApiService.tryCategoryEndpoints -> requesting', path);
+        const response = await client.get<CategoryDTO[]>(path);
+        console.log('ApiService.tryCategoryEndpoints -> received', response.data.length, 'categories');
+        return response.data;
+      } catch (error: any) {
+        lastError = error;
+        if (this.shouldStopCategoryFallback(error)) {
+          throw error;
+        }
+        console.warn('ApiService.tryCategoryEndpoints -> endpoint failed, trying next path', path, error?.message);
+      }
+    }
+    throw lastError ?? new Error('Nenhum endpoint de categoria disponível');
+  }
+
+  private shouldStopCategoryFallback(error: any): boolean {
+    const status = error?.response?.status;
+    if (status === 401 || status === 403) {
+      return true;
+    }
+    if (status === 404 || status === 405) {
+      return false;
+    }
+    if (status === 500) {
+      const message = (error?.response?.data?.message ?? '').toString().toLowerCase();
+      if (message.includes('not supported')) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   constructor() {
     // API com autenticação (para rotas protegidas)
@@ -138,25 +226,32 @@ class ApiService {
   async getAllCategories(): Promise<CategoryDTO[]> {
     try {
       console.log('ApiService.getAllCategories -> buscando categorias...');
-      // Tenta com token primeiro, se falhar tenta sem
       const token = await this.getToken();
       const apiToUse = token ? this.api : this.publicApi;
-      
-      const response = await apiToUse.get<CategoryDTO[]>('/categories');
-      console.log('ApiService.getAllCategories -> categorias encontradas:', response.data.length);
-      return response.data;
+
+      const payload = await this.tryCategoryEndpoints(apiToUse, ['/categories/list', '/categories']);
+      return payload;
     } catch (error: any) {
       console.error('ApiService.getAllCategories -> erro:', error);
-      // Se falhar com autenticação, tenta sem
       if (error?.response?.status === 403 || error?.response?.status === 401) {
         try {
-          const response = await this.publicApi.get<CategoryDTO[]>('/categories');
-          return response.data;
+          const payload = await this.tryCategoryEndpoints(this.publicApi, ['/categories/list', '/categories']);
+          return payload;
         } catch (publicError) {
           console.error('ApiService.getAllCategories -> erro público:', publicError);
           throw publicError;
         }
       }
+      throw error;
+    }
+  }
+
+  async getCategoryById(id: number): Promise<CategoryDTO> {
+    try {
+      const response = await this.api.get<CategoryDTO>(`/categories/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('ApiService.getCategoryById -> erro ao buscar categoria:', error);
       throw error;
     }
   }
@@ -209,6 +304,143 @@ class ApiService {
   }
 
   // ========================================
+  // MÉTODOS - SUBCATEGORIAS
+  // ========================================
+
+  async getSubcategories(categoryId: number): Promise<SubcategoryDTO[]> {
+    try {
+      const response = await this.api.get<SubcategoryDTO[]>(`/categories/${categoryId}/subcategories`);
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.getSubcategories -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async createSubcategory(categoryId: number, payload: SubcategoryInput): Promise<SubcategoryDTO> {
+    try {
+      const response = await this.api.post<SubcategoryDTO>(
+        `/categories/${categoryId}/subcategories`,
+        payload,
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.createSubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async updateSubcategory(
+    categoryId: number,
+    subcategoryId: number,
+    payload: SubcategoryInput,
+  ): Promise<SubcategoryDTO> {
+    try {
+      const response = await this.api.put<SubcategoryDTO>(
+        `/categories/${categoryId}/subcategories/${subcategoryId}`,
+        payload,
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.updateSubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async deleteSubcategory(categoryId: number, subcategoryId: number): Promise<void> {
+    try {
+      await this.api.delete(`/categories/${categoryId}/subcategories/${subcategoryId}`);
+    } catch (error: any) {
+      console.error('ApiService.deleteSubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  // ========================================
+  // MÉTODOS - TEMAS
+  // ========================================
+
+  async getThemes(): Promise<ThemeDTO[]> {
+    try {
+      const response = await this.api.get<ThemeDTO[]>('/themes');
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.getThemes -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async createTheme(payload: ThemeInput): Promise<ThemeDTO> {
+    try {
+      const response = await this.api.post<ThemeDTO>('/themes', payload);
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.createTheme -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async updateTheme(id: number, payload: ThemeInput): Promise<ThemeDTO> {
+    try {
+      const response = await this.api.put<ThemeDTO>(`/themes/${id}`, payload);
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.updateTheme -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async deleteTheme(id: number): Promise<void> {
+    try {
+      await this.api.delete(`/themes/${id}`);
+    } catch (error: any) {
+      console.error('ApiService.deleteTheme -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  // ========================================
+  // MÉTODOS - ASSOCIAÇÃO SUBCATEGORIA/TEMA
+  // ========================================
+
+  async assignThemesToSubcategory(payload: SubcategoryThemeAssignRequest): Promise<void> {
+    try {
+      await this.api.post('/subcategory-themes', payload);
+    } catch (error: any) {
+      console.error('ApiService.assignThemesToSubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async overwriteThemesForSubcategory(subcategoryId: number, themeIds: number[]): Promise<void> {
+    try {
+      await this.api.put(`/subcategory-themes/${subcategoryId}`, themeIds);
+    } catch (error: any) {
+      console.error('ApiService.overwriteThemesForSubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async removeThemeFromSubcategory(subcategoryId: number, themeId: number): Promise<void> {
+    try {
+      await this.api.delete(`/subcategory-themes/${subcategoryId}/${themeId}`);
+    } catch (error: any) {
+      console.error('ApiService.removeThemeFromSubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  async getThemeIdsBySubcategory(subcategoryId: number): Promise<number[]> {
+    try {
+      const response = await this.api.get<number[]>(`/subcategory-themes/${subcategoryId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('ApiService.getThemeIdsBySubcategory -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
+  // ========================================
   // MÉTODOS - PRODUTOS (PÚBLICOS)
   // ========================================
 
@@ -223,22 +455,9 @@ class ApiService {
       console.log('ApiService.getAllProducts -> using apiToUse:', token ? 'authenticated' : 'public');
       console.log('ApiService.getAllProducts -> token exists:', !!token);
 
-      const response = await apiToUse.get<ProductDTO[]>('/products');
-      
-      // Mapear do formato do backend para o formato do frontend
-      return response.data.map(dto => {
-        const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-        return {
-          id: dto.id,
-          name: dto.name,
-          description: dto.description,
-          price: dto.price,
-          category: categoryName,
-          image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-          stock: dto.stock ?? 0,
-          categoryId: dto.category?.id ?? dto.categoryId ?? null,
-        };
-      });
+      const response = await apiToUse.get('/products');
+      const list = this.normalizeProductPayload(response.data);
+      return list.map((dto) => this.mapProductDTO(dto));
     } catch (error: any) {
       // Se falhar com token, tentar sem autenticação
       const status = error?.response?.status;
@@ -246,21 +465,9 @@ class ApiService {
       if (status === 403 || status === 401) {
         try {
           console.log('Tentando buscar produtos sem autenticação...');
-          const response = await this.publicApi.get<ProductDTO[]>('/products');
-          
-          return response.data.map(dto => {
-            const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-            return {
-              id: dto.id,
-              name: dto.name,
-              description: dto.description,
-              price: dto.price,
-              category: categoryName,
-              image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-              stock: dto.stock ?? 0,
-              categoryId: dto.category?.id ?? dto.categoryId ?? null,
-            };
-          });
+          const response = await this.publicApi.get('/products');
+          const list = this.normalizeProductPayload(response.data);
+          return list.map((dto) => this.mapProductDTO(dto));
         } catch (publicError) {
           console.error('Erro ao buscar produtos (público):', publicError);
           throw publicError;
@@ -272,6 +479,39 @@ class ApiService {
     }
   }
 
+  async getProductsPage(
+    page: number,
+    size: number,
+    filters?: ProductPageFilters,
+  ): Promise<ProductsPageResult> {
+    try {
+      const token = await this.getToken();
+      const apiToUse = token ? this.api : this.publicApi;
+      const params: Record<string, any> = { page, size };
+      if (filters?.search) {
+        params.search = filters.search;
+      }
+      if (filters?.category) {
+        params.category = filters.category;
+      }
+
+      const response = await apiToUse.get('/products', { params });
+      const payload = response.data ?? {};
+      const list = this.normalizeProductPayload(payload).map((dto) => this.mapProductDTO(dto));
+      const meta = this.extractPaginationMeta(payload);
+      return {
+        items: list,
+        page: Number.isFinite(meta.page) ? meta.page : page,
+        size: meta.size || size,
+        totalPages: meta.totalPages || (list.length ? 1 : 0),
+        totalItems: meta.totalItems || list.length,
+      };
+    } catch (error: any) {
+      console.error('ApiService.getProductsPage -> erro:', error?.response?.data ?? error?.message ?? error);
+      throw error;
+    }
+  }
+
   /**
    * Buscar produto por ID (rota pública)
    */
@@ -279,38 +519,13 @@ class ApiService {
     try {
       const token = await this.getToken();
       const apiToUse = token ? this.api : this.publicApi;
-      
       const response = await apiToUse.get<ProductDTO>(`/products/${id}`);
-      const dto = response.data;
-      
-      const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-      return {
-        id: dto.id,
-        name: dto.name,
-        description: dto.description,
-        price: dto.price,
-        category: categoryName,
-        image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-        stock: dto.stock ?? 0,
-        categoryId: dto.category?.id ?? dto.categoryId ?? null,
-      };
+      return this.mapProductDTO(response.data);
     } catch (error: any) {
       if (error?.response?.status === 403 || error?.response?.status === 401) {
         try {
           const response = await this.publicApi.get<ProductDTO>(`/products/${id}`);
-          const dto = response.data;
-          
-          const categoryName = dto.category?.name?.trim() || 'Sem categoria';
-          return {
-            id: dto.id,
-            name: dto.name,
-            description: dto.description,
-            price: dto.price,
-            category: categoryName,
-            image_url: this.resolveImageUrl(dto.imageUrl ?? null),
-            stock: dto.stock ?? 0,
-            categoryId: dto.category?.id ?? dto.categoryId ?? null,
-          };
+          return this.mapProductDTO(response.data);
         } catch (publicError) {
           console.error('Erro ao buscar produto (público):', publicError);
           throw publicError;
@@ -318,50 +533,6 @@ class ApiService {
       }
       
       console.error('Erro ao buscar produto:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Criar produto (requer autenticação de admin)
-   */
-  async createProduct(productData: CreateProductRequest): Promise<ProductDTO> {
-    try {
-      console.log('ApiService.createProduct -> enviando dados para API:', productData);
-      console.log('ApiService.createProduct -> payload JSON:', JSON.stringify(productData));
-
-      const token = await this.getToken();
-      if (token) {
-        const masked = `${token.slice(0,6)}...${token.slice(-6)}`;
-        console.log('ApiService.createProduct -> token (masked):', masked);
-      } else {
-        console.log('ApiService.createProduct -> sem token no storage');
-      }
-
-      const response = await this.api.post<ProductDTO>('/products', productData, {
-        headers: token
-          ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-          : { 'Content-Type': 'application/json' },
-      });
-      let payload: any = response.data;
-      if (typeof payload === 'string') {
-        try {
-          payload = JSON.parse(payload);
-        } catch (parseError) {
-          console.warn('ApiService.createProduct -> resposta não JSON recebida:', payload);
-          payload = { message: payload };
-        }
-      }
-      console.log('ApiService.createProduct -> produto criado com sucesso:', payload);
-      return payload;
-    } catch (error: any) {
-      console.error('ApiService.createProduct -> erro ao criar produto:', error);
-      if (error?.response?.data) {
-        console.error('ApiService.createProduct -> error body:', error.response.data);
-      }
-      if (error?.response?.status) {
-        console.error('ApiService.createProduct -> response status:', error.response.status);
-      }
       throw error;
     }
   }
@@ -452,10 +623,59 @@ class ApiService {
 export interface CategoryDTO {
   id: number;
   name: string;
+  description?: string | null;
+  slug?: string | null;
 }
 
 export interface CreateCategoryRequest {
   name: string;
+  description?: string | null;
+}
+
+export interface SubcategoryDTO {
+  id: number;
+  name: string;
+  description?: string | null;
+  slug?: string | null;
+  categoryId: number;
+}
+
+export interface SubcategoryInput {
+  name: string;
+  description?: string | null;
+  slug?: string | null;
+}
+
+export interface ThemeDTO {
+  id: number;
+  name: string;
+  description?: string | null;
+  slug?: string | null;
+}
+
+export interface ThemeInput {
+  name: string;
+  description?: string | null;
+  slug?: string | null;
+}
+
+export interface ProductsPageResult {
+  items: Product[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalItems: number;
+}
+
+export interface ProductPageFilters {
+  search?: string;
+  category?: string;
+}
+
+export interface SubcategoryThemeAssignRequest {
+  categoryId: number;
+  subcategoryId: number;
+  themeIds: number[];
 }
 
 export interface ProductDTO {
@@ -465,24 +685,18 @@ export interface ProductDTO {
   price: number;
   stock?: number | null;
   imageUrl?: string | null;
+  imageUrls?: Array<string | null>;
+  mainImageUrl?: string | null;
   categoryId?: number | null;
+  categoryName?: string | null;
   category?: {
     id: number;
     name: string;
   } | null;
-}
-
-export interface CreateProductRequest {
-  name: string;
-  description: string;
-  price: number;
-  stock: number;
-  imageUrl: string | null;
-  category: {
-    id: number;
-    name: string;
-  };
-  categoryId?: number;
+  subcategoryId?: number | null;
+  subcategoryName?: string | null;
+  themeIds?: number[];
+  themeNames?: string[];
 }
 
 export interface OrderItemDTO {

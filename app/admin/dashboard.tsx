@@ -54,6 +54,18 @@ function formatPhone(value?: string | null) {
 	return digits;
 }
 
+const isNumericString = (value: string) => /^\d+$/.test(value.trim());
+
+const getInitials = (value?: string | null) => {
+	const chunks = (value ?? '')
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((part) => part[0]?.toUpperCase() ?? '');
+	return chunks.join('') || 'US';
+};
+
 const alignToJustify = (align?: 'left' | 'center' | 'right') => {
 	if (align === 'center') return 'center';
 	if (align === 'right') return 'flex-end';
@@ -71,8 +83,8 @@ type ColumnDefinition = {
 };
 
 const palette = {
-	primary: '#00B7C2',
-	primaryDark: '#0084A3',
+	primary: '#00BCD4',
+	primaryDark: '#00BCD4',
 	background: '#F4F6FB',
 	card: '#FFFFFF',
 	border: '#E4E9F2',
@@ -97,7 +109,6 @@ export default function AdminDashboard() {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	const [ordersUserId, setOrdersUserId] = useState('');
 	const isFocused = useIsFocused();
 
 	const [editModalVisible, setEditModalVisible] = useState(false);
@@ -113,6 +124,7 @@ export default function AdminDashboard() {
 	const [confirmUserVisible, setConfirmUserVisible] = useState(false);
 	const [userDeleteTarget, setUserDeleteTarget] = useState<User | null>(null);
 	const [userActionLoading, setUserActionLoading] = useState(false);
+	const [activeUser, setActiveUser] = useState<User | null>(null);
 
 	const tabFadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -122,6 +134,10 @@ export default function AdminDashboard() {
 		if (selectedTab === 'products') fetchProducts();
 		if (selectedTab === 'users') fetchUsers();
 	}, [selectedTab]);
+
+	useEffect(() => {
+		fetchUsers();
+	}, []);
 
 	useEffect(() => {
 		if (isFocused && selectedTab === 'products') {
@@ -144,6 +160,24 @@ export default function AdminDashboard() {
 			}),
 		]).start();
 	}, [selectedTab, tabFadeAnim]);
+
+	useEffect(() => {
+		if (!activeUser) return;
+		const stillExists = users.some(
+			(u) =>
+				(u.id && activeUser.id && u.id === activeUser.id) ||
+				normalizeEmailValue(u.email) === normalizeEmailValue(activeUser.email),
+		);
+		if (!stillExists) {
+			setActiveUser(null);
+		}
+	}, [users, activeUser]);
+
+	useEffect(() => {
+		if (selectedTab !== 'users' && activeUser) {
+			setActiveUser(null);
+		}
+	}, [selectedTab, activeUser]);
 
 	async function fetchProducts() {
 		setError(null);
@@ -319,17 +353,24 @@ export default function AdminDashboard() {
 		}
 	}
 
-	async function fetchOrdersForUser(id: number) {
+	async function fetchOrdersForUser(id: number, options?: { silent?: boolean }) {
 		setError(null);
-		setLoading(true);
+		if (!options?.silent) {
+			setLoading(true);
+		}
 		try {
 			const res = await orderService.getUserOrders(id);
 			setOrders(res || []);
+			if (!res || res.length === 0) {
+				setError('Nenhum pedido encontrado para este usuário');
+			}
 		} catch (e: any) {
 			setError('Erro ao buscar pedidos');
 			console.error(e);
 		} finally {
-			setLoading(false);
+			if (!options?.silent) {
+				setLoading(false);
+			}
 		}
 	}
 
@@ -337,13 +378,37 @@ export default function AdminDashboard() {
 		router.push('/admin/create-product');
 	}
 
-	function handleOrdersSearch() {
-		const numericId = Number(ordersUserId);
-		if (!numericId) {
-			setError('Informe um ID de usuário válido');
+	function handleManageCategories() {
+		router.push('/admin/categories');
+	}
+
+	async function handleOrdersSearch() {
+		if (selectedTab !== 'orders') return;
+		const term = searchQuery.trim();
+		if (!term) {
+			setError('Informe um termo para buscar pedidos');
 			return;
 		}
-		fetchOrdersForUser(numericId);
+		if (!isNumericString(term)) {
+			toast.showInfo('Filtro aplicado', 'Filtrando pedidos pelo nome do cliente.');
+			return;
+		}
+		const numericId = Number(term);
+		setError(null);
+		setLoading(true);
+		try {
+			const order = await orderService.getOrderById(numericId);
+			if (order) {
+				setOrders([order]);
+				return;
+			}
+			await fetchOrdersForUser(numericId, { silent: true });
+		} catch (error) {
+			console.error('Erro ao buscar pedido pelo ID informado:', error);
+			await fetchOrdersForUser(numericId, { silent: true });
+		} finally {
+			setLoading(false);
+		}
 	}
 
 	const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -554,7 +619,7 @@ export default function AdminDashboard() {
 			{
 				key: 'name',
 				label: 'Produto',
-				flex: 1.2,
+				flex: 1,
 				render: (item: Product) => (
 					<View>
 						<Text style={styles.cellTitle}>{item.name}</Text>
@@ -565,16 +630,16 @@ export default function AdminDashboard() {
 			{
 				key: 'price',
 				label: 'Preço',
-				flex: 0.6,
-				align: 'right',
+				flex: 0.65,
+				align: 'left',
 				render: (item: Product) => (
-					<Text style={styles.cellTitle}>R$ {Number(item.price ?? 0).toFixed(2)}</Text>
+					<Text style={styles.cellTitle}>{Number(item.price ?? 0).toFixed(2)}</Text>
 				),
 			},
 			{
 				key: 'stock',
 				label: 'Estoque',
-				flex: 0.4,
+				flex: 1,
 				align: 'center',
 				render: (item: Product) => (
 					<Text style={[styles.stockBadge, item.stock <= 5 && styles.stockBadgeLow]}>{item.stock}</Text>
@@ -583,49 +648,9 @@ export default function AdminDashboard() {
 			{
 				key: 'actions',
 				label: 'Ações',
-				flex: 0.9,
-				align: 'right',
+				flex: 0.95,
+				align: 'center',
 				render: (item: Product) => renderActionButtons('product', item),
-			},
-		];
-
-		const userColumns: ColumnDefinition[] = [
-			{
-				key: 'name',
-				label: 'Usuário',
-				flex: 1.2,
-				render: (item: User) => (
-					<View>
-						<Text style={styles.cellTitle}>{item.name}</Text>
-						<Text style={styles.cellSubtitle}>{item.email}</Text>
-					</View>
-				),
-			},
-			{
-				key: 'role',
-				label: 'Perfil',
-				flex: 0.6,
-				render: (item: User) => (
-					<Text style={styles.roleBadge}>{(item.role ?? item.type ?? 'USER').toString().toUpperCase()}</Text>
-				),
-			},
-			{
-				key: 'phoneNumber',
-				label: 'Contato',
-				flex: 1,
-				render: (item: User) => (
-					<View style={styles.contactWrapper}>
-						<Text style={styles.contactText}>{formatPhone(item.phoneNumber)}</Text>
-						{item.email ? <Text style={styles.contactSubText}>{item.email}</Text> : null}
-					</View>
-				),
-			},
-			{
-				key: 'actions',
-				label: 'Ações',
-				flex: 0.9,
-				align: 'right',
-				render: (item: User) => renderActionButtons('user', item),
 			},
 		];
 
@@ -675,12 +700,151 @@ export default function AdminDashboard() {
 			},
 		];
 
+		const isSameUser = (a?: User | null, b?: User | null) => {
+			if (!a || !b) return false;
+			if (a.id && b.id && a.id === b.id) return true;
+			return normalizeEmailValue(a.email) === normalizeEmailValue(b.email);
+		};
+
+		const renderUserDetails = (target: User) => {
+			const roleLabel = (target.role ?? target.type ?? 'USER').toString().toUpperCase();
+			const isCurrentUser =
+				(user?.id && target.id && user.id === target.id) ||
+				(user?.email && target.email && normalizeEmailValue(user.email) === normalizeEmailValue(target.email));
+
+			return (
+				<View style={styles.userDetailCard}>
+					<View style={styles.userDetailHeader}>
+						<View>
+							<Text style={styles.userDetailName}>{target.name || 'Usuário sem nome'}</Text>
+							<Text style={styles.userDetailEmail}>{target.email || 'Email não informado'}</Text>
+						</View>
+						<Text style={styles.roleBadgeExpanded}>{roleLabel}</Text>
+					</View>
+
+					<View style={styles.userDetailRow}>
+						<Ionicons name="mail-outline" size={16} color={palette.muted} />
+						<Text style={styles.userDetailLabel}>Email</Text>
+						<Text style={styles.userDetailValue}>{target.email || 'Não informado'}</Text>
+					</View>
+					<View style={styles.userDetailRow}>
+						<Ionicons name="call-outline" size={16} color={palette.muted} />
+						<Text style={styles.userDetailLabel}>Contato</Text>
+						<Text style={styles.userDetailValue}>{formatPhone(target.phoneNumber)}</Text>
+					</View>
+					<View style={styles.userDetailRow}>
+						<Ionicons name="card-outline" size={16} color={palette.muted} />
+						<Text style={styles.userDetailLabel}>CPF</Text>
+						<Text style={styles.userDetailValue}>{target.cpf || 'Não informado'}</Text>
+					</View>
+					<View style={styles.userDetailRow}>
+						<Ionicons name="shield-checkmark-outline" size={16} color={palette.muted} />
+						<Text style={styles.userDetailLabel}>Perfil</Text>
+						<Text style={styles.userDetailValue}>{roleLabel}</Text>
+					</View>
+					<View style={styles.userDetailRow}>
+						<Ionicons name="calendar-outline" size={16} color={palette.muted} />
+						<Text style={styles.userDetailLabel}>Cadastro</Text>
+						<Text style={styles.userDetailValue}>{target.id ? `ID #${target.id}` : 'Não informado'}</Text>
+					</View>
+
+					<View style={styles.userDetailActions}>
+						<TouchableOpacity
+							style={[styles.detailButton, styles.detailButtonPrimary]}
+							onPress={() => openUserEditor(target)}
+						>
+							<Ionicons name="create-outline" size={16} color="#fff" />
+							<Text style={styles.detailButtonText}>Editar</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={[
+								styles.detailButton,
+								styles.detailButtonDanger,
+								(isCurrentUser || !target.email) && styles.rowActionDisabled,
+							]}
+							onPress={() => {
+								if (isCurrentUser) {
+									toast.showError('Operação não permitida', 'Você não pode excluir sua própria conta.');
+									return;
+								}
+								handleDeleteUser(target);
+							}}
+							disabled={isCurrentUser || !target.email}
+						>
+							<Ionicons name="trash-outline" size={16} color="#fff" />
+							<Text style={styles.detailButtonText}>Excluir</Text>
+						</TouchableOpacity>
+					</View>
+				</View>
+			);
+		};
+
+		const renderUserDirectory = () => {
+			if (loading) {
+				return (
+					<View style={styles.loadingState}>
+						<ActivityIndicator size="small" color={palette.info} />
+						<Text style={styles.loadingText}>Carregando dados...</Text>
+					</View>
+				);
+			}
+
+			if (error) {
+				return <Text style={styles.errorText}>{error}</Text>;
+			}
+
+			if (!filteredUsers.length) {
+				return <Text style={styles.emptyText}>Nenhum usuário encontrado.</Text>;
+			}
+
+			return (
+				<View style={styles.userDirectory}>
+					<View style={styles.userList}>
+						{filteredUsers.map((item) => {
+							const isActiveUser = isSameUser(activeUser, item);
+							return (
+								<TouchableOpacity
+									key={`user-${item.id || item.email}`}
+									style={[styles.userListItem, isActiveUser && styles.userListItemActive]}
+									onPress={() =>
+										setActiveUser((current) => (isSameUser(current, item) ? null : item))
+								}
+								>
+									<View style={styles.userAvatar}>
+										<Text style={styles.userAvatarText}>{getInitials(item.name)}</Text>
+									</View>
+									<View style={styles.userListMeta}>
+										<Text style={styles.userListName}>{item.name || 'Usuário sem nome'}</Text>
+										<Text style={styles.userListEmail}>{item.email || 'Email não informado'}</Text>
+									</View>
+									<Text style={[styles.userRolePill, isActiveUser && styles.userRolePillActive]}>
+										{(item.role ?? item.type ?? 'USER').toString().toUpperCase()}
+									</Text>
+									<Ionicons
+										name="chevron-forward"
+										size={18}
+										color={isActiveUser ? palette.primaryDark : palette.muted}
+									/>
+
+								</TouchableOpacity>
+							);
+						})}
+					</View>
+					{activeUser ? (
+						<View style={styles.userDetailWrapper}>{renderUserDetails(activeUser)}</View>
+					) : (
+						<Text style={styles.userHint}>Selecione um usuário para visualizar os detalhes.</Text>
+					)}
+				</View>
+			);
+		};
+
 		const renderCurrentTab = () => {
 			if (selectedTab === 'products') {
 				return renderTable(productColumns, filteredProducts, 'Nenhum produto cadastrado.');
 			}
 			if (selectedTab === 'users') {
-				return renderTable(userColumns, filteredUsers, 'Nenhum usuário encontrado.');
+				return renderUserDirectory();
 			}
 			return renderTable(orderColumns, filteredOrders, 'Nenhum pedido encontrado para este usuário.');
 		};
@@ -689,207 +853,26 @@ export default function AdminDashboard() {
 			<SafeAreaView style={styles.container}>
 				<ScrollView contentContainerStyle={styles.scrollContent}>
 					<View style={styles.header}>
-						<View>
-							<Text style={styles.title}>Dashboard administrativo</Text>
-							<Text style={styles.subtitle}>
-								Bem-vindo, {user?.name?.split(' ')[0] ?? 'administrador'}.
-							</Text>
-						</View>
-						<View style={styles.headerActions}>
-							<TouchableOpacity style={styles.primaryButton} onPress={handleCreateProduct} activeOpacity={0.9}>
-								<Ionicons name="add-outline" size={18} color="#fff" style={styles.primaryButtonIcon} />
-								<Text style={styles.primaryButtonText}>Novo produto</Text>
-							</TouchableOpacity>
-						</View>
+						<Text style={styles.title}>Dashboard administrativo</Text>
+						<Text style={styles.subtitle}>Bem-vindo, {user?.name?.split(' ')[0] ?? 'administrador'}.</Text>
 					</View>
 
-					<View style={styles.statsGrid}>
-						{statsCards.map((card) => (
-							<View key={card.key} style={styles.statCard}>
-								<View style={[styles.statIconWrapper, { backgroundColor: card.tint }]}>
-									<Ionicons name={card.icon} size={20} color="#0F172A" />
-								</View>
-								<Text style={styles.statLabel}>{card.label}</Text>
-								<Text style={styles.statValue}>{card.value}</Text>
-								<Text style={styles.statMeta}>{card.meta}</Text>
-							</View>
-						))}
-					</View>
-
-					<View style={styles.panel}>
-						<View style={styles.tabsRow}>
-							{tabsConfig.map((tab) => {
-								const isActive = tab.key === selectedTab;
-								return (
-									<TouchableOpacity
-										key={tab.key}
-										style={[styles.tabButton, isActive && styles.tabButtonActive]}
-										onPress={() => setSelectedTab(tab.key)}
-										activeOpacity={0.9}
-									>
-										<Ionicons
-											name={tab.icon}
-											size={18}
-											color={isActive ? '#0F172A' : '#64748B'}
-										/>
-										<Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
-									</TouchableOpacity>
-								);
-							})}
-						</View>
-
-						<View style={styles.panelHeader}>
-							<View>
-								<Text style={styles.sectionTitle}>{currentTabMeta?.label}</Text>
-								<Text style={styles.sectionSubtitle}>{currentTabMeta?.description}</Text>
-							</View>
-							{selectedTab === 'users' && (
-								<TouchableOpacity style={styles.secondaryButton} onPress={fetchUsers}>
-									<Ionicons name="refresh-outline" size={16} color="#0F172A" />
-									<Text style={styles.secondaryButtonText}>Atualizar lista</Text>
-								</TouchableOpacity>
-							)}
-						</View>
-
-						<View style={styles.utilityRow}>
-							<View style={styles.searchBar}>
-								<Ionicons name="search-outline" size={18} color="#64748B" />
-								<TextInput
-									style={styles.searchInput}
-									placeholder="Buscar por nome, email ou status"
-									placeholderTextColor="#94A3B8"
-									value={searchQuery}
-									onChangeText={setSearchQuery}
-								/>
-							</View>
-
-							{selectedTab === 'orders' && (
-								<View style={styles.orderFilter}>
-									<TextInput
-										style={styles.orderInput}
-										placeholder="ID do usuário"
-										placeholderTextColor="#94A3B8"
-										value={ordersUserId}
-										onChangeText={setOrdersUserId}
-										keyboardType="numeric"
-									/>
-									<TouchableOpacity style={styles.secondaryButton} onPress={handleOrdersSearch}>
-										<Ionicons name="download-outline" size={16} color="#0F172A" />
-										<Text style={styles.secondaryButtonText}>Buscar</Text>
-									</TouchableOpacity>
-								</View>
-							)}
-						</View>
-
-						<Animated.View style={[styles.tabContent, { opacity: tabFadeAnim }]}>{renderCurrentTab()}</Animated.View>
-					</View>
-				</ScrollView>
-
-				<ConfirmModal
-					visible={confirmVisible}
-					title="Excluir Produto"
-					message="Deseja realmente excluir este produto? Esta ação não pode ser desfeita."
-					confirmText="Excluir"
-					cancelText="Cancelar"
-					loading={loading}
-					onCancel={() => {
-						setConfirmVisible(false);
-						setConfirmTargetId(null);
-					}}
-					onConfirm={() => {
-						if (confirmTargetId) deleteConfirmed(confirmTargetId);
-					}}
-				/>
-
-				<UserEditModal
-					visible={userModalVisible}
-					user={editingUser}
-					loading={userModalLoading}
-					onCancel={() => {
-						setUserModalVisible(false);
-						setEditingUser(null);
-					}}
-					onSave={handleSaveUser}
-				/>
-
-				<ConfirmModal
-					visible={confirmUserVisible}
-					title="Excluir Usuário"
-					message={userDeleteTarget ? `Deseja realmente excluir ${userDeleteTarget?.name}?` : 'Deseja excluir este usuário?'}
-					confirmText="Excluir"
-					cancelText="Cancelar"
-					loading={userActionLoading}
-					onCancel={() => {
-						setConfirmUserVisible(false);
-						setUserDeleteTarget(null);
-					}}
-					onConfirm={deleteUserConfirmed}
-				/>
-
-				<ProductEditModal
-					visible={editModalVisible}
-					product={editingProduct}
-					categories={editCategories}
-					loading={editLoading}
-					onCancel={() => {
-						setEditModalVisible(false);
-						setEditingProduct(null);
-					}}
-					onSave={async (payload) => {
-						if (!editingProduct) return;
-						setEditLoading(true);
-						try {
-							const category = editCategories.find((c) => String(c.id) === String(payload.categoryId));
-							const updatePayload = {
-								name: payload.name,
-								description: editingProduct.description || '',
-								price: payload.price,
-								stock: payload.stock,
-								imageUrl: editingProduct.imageUrl || '',
-								category: {
-									id: Number(payload.categoryId) || editingProduct.category?.id || null,
-									name: category?.name || editingProduct.category?.name || '',
-								},
-							};
-
-							const updated = await productService.updateProduct(editingProduct.id, updatePayload);
-							const updatedFront: Product = {
-								id: updated.id,
-								name: updated.name,
-								description: updated.description || '',
-								price: updated.price,
-								category: updated.category?.name || '',
-								image_url: updated.imageUrl || null,
-								stock: updated.stock,
-							};
-
-							setProducts((prev) => prev.map((p) => (p.id === updatedFront.id ? updatedFront : p)));
-							setEditModalVisible(false);
-							setEditingProduct(null);
-							toast.showSuccess('Produto atualizado', 'As alterações foram salvas.');
-						} catch (e: any) {
-							console.error('Erro ao salvar edição:', e);
-							toast.showError('Erro', e?.message || 'Não foi possível atualizar o produto');
-						} finally {
-							setEditLoading(false);
-						}
-					}}
-				/>
-			</SafeAreaView>
-		);
-		return (
-			<SafeAreaView style={styles.container}>
-				<ScrollView contentContainerStyle={styles.scrollContent}>
-					<View style={styles.header}>
-						<View>
-							<Text style={styles.title}>Dashboard administrativo</Text>
-							<Text style={styles.subtitle}>
-								Bem-vindo, {user?.name?.split(' ')[0] ?? 'administrador'}.
-							</Text>
-						</View>
-						<TouchableOpacity style={styles.primaryButton} onPress={handleCreateProduct} activeOpacity={0.9}>
-							<Ionicons name="add-outline" size={18} color="#fff" style={styles.primaryButtonIcon} />
+					<View style={styles.quickActionsRow}>
+						<TouchableOpacity
+							style={[styles.fullWidthCTA, styles.quickAction]}
+							onPress={handleCreateProduct}
+							activeOpacity={0.9}
+						>
+							<Ionicons name="add-outline" size={20} color="#fff" style={styles.primaryButtonIcon} />
 							<Text style={styles.primaryButtonText}>Novo produto</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={[styles.fullWidthCTA, styles.quickAction, styles.secondaryCTA]}
+							onPress={handleManageCategories}
+							activeOpacity={0.9}
+						>
+							<Ionicons name="layers-outline" size={20} color="#fff" style={styles.primaryButtonIcon} />
+							<Text style={styles.primaryButtonText}>Categoria</Text>
 						</TouchableOpacity>
 					</View>
 
@@ -942,33 +925,32 @@ export default function AdminDashboard() {
 						</View>
 
 						<View style={styles.utilityRow}>
-							<View style={styles.searchBar}>
-								<Ionicons name="search-outline" size={18} color="#64748B" />
+							<View style={[styles.searchBar, selectedTab === 'orders' && styles.searchBarOrders]}>
+								<Ionicons name="search-outline" size={18} color={palette.muted} />
 								<TextInput
 									style={styles.searchInput}
-									placeholder="Buscar por nome, email ou status"
-									placeholderTextColor="#94A3B8"
+									placeholder={
+										selectedTab === 'orders'
+											? 'Buscar por ID ou nome do cliente'
+											: 'Buscar por nome, email ou status'
+									}
+									placeholderTextColor={palette.muted}
 									value={searchQuery}
 									onChangeText={setSearchQuery}
+									onSubmitEditing={() => {
+										if (selectedTab === 'orders') {
+											handleOrdersSearch();
+										}
+									}}
+									returnKeyType={selectedTab === 'orders' ? 'search' : 'done'}
 								/>
-							</View>
-
-							{selectedTab === 'orders' && (
-								<View style={styles.orderFilter}>
-									<TextInput
-										style={styles.orderInput}
-										placeholder="ID do usuário"
-										placeholderTextColor="#94A3B8"
-										value={ordersUserId}
-										onChangeText={setOrdersUserId}
-										keyboardType="numeric"
-									/>
-									<TouchableOpacity style={styles.secondaryButton} onPress={handleOrdersSearch}>
-										<Ionicons name="download-outline" size={16} color="#0F172A" />
-										<Text style={styles.secondaryButtonText}>Buscar</Text>
+								{selectedTab === 'orders' && (
+									<TouchableOpacity style={styles.searchActionButton} onPress={handleOrdersSearch}>
+										<Ionicons name="arrow-forward-outline" size={16} color="#fff" />
+										<Text style={styles.searchActionText}>Buscar</Text>
 									</TouchableOpacity>
-								</View>
-							)}
+								)}
+							</View>
 						</View>
 
 						<Animated.View style={[styles.tabContent, { opacity: tabFadeAnim }]}>{renderCurrentTab()}</Animated.View>
@@ -1077,7 +1059,7 @@ export default function AdminDashboard() {
 	const styles = StyleSheet.create({
 		container: {
 			flex: 1,
-			backgroundColor: '#EEF2FF',
+			backgroundColor: palette.background,
 		},
 		scrollContent: {
 			paddingHorizontal: 20,
@@ -1086,52 +1068,53 @@ export default function AdminDashboard() {
 			gap: 20,
 		},
 		header: {
-			flexDirection: 'row',
-			justifyContent: 'space-between',
-			alignItems: 'flex-start',
-			marginBottom: 12,
-			flexWrap: 'wrap',
-			gap: 12,
-		},
-		headerActions: {
-			flexDirection: 'row',
-			justifyContent: 'flex-end',
-			flexGrow: 1,
-			flexShrink: 0,
-			minWidth: 160,
+			gap: 4,
 		},
 		title: {
 			fontSize: 24,
 			fontWeight: '700',
-			color: '#0F172A',
-			marginBottom: 4,
+			color: palette.text,
 		},
 		subtitle: {
 			fontSize: 16,
-			color: '#475569',
+			color: palette.softText,
 		},
-		primaryButton: {
-			backgroundColor: '#2563EB',
-			borderRadius: 999,
-			paddingHorizontal: 20,
-			paddingVertical: 12,
+		quickActionsRow: {
+			flexDirection: 'row',
+			gap: 12,
+			flexWrap: 'wrap',
+		},
+		fullWidthCTA: {
+			backgroundColor: palette.primary,
+			borderRadius: 16,
+			paddingHorizontal: 24,
+			paddingVertical: 14,
 			flexDirection: 'row',
 			alignItems: 'center',
-			shadowColor: '#2563EB',
-			shadowOpacity: 0.3,
-			shadowRadius: 8,
-			shadowOffset: { width: 0, height: 8 },
-			elevation: 4,
-			alignSelf: 'flex-start',
-			flexShrink: 0,
+			justifyContent: 'center',
+			gap: 8,
+			shadowColor: palette.primaryDark,
+			shadowOpacity: 0.35,
+			shadowRadius: 12,
+			shadowOffset: { width: 0, height: 6 },
+			elevation: 6,
+		},
+		quickAction: {
+			flex: 1,
+			minWidth: 160,
+		},
+		secondaryCTA: {
+			backgroundColor: palette.text,
 		},
 		primaryButtonIcon: {
-			marginRight: 8,
+			marginRight: 4,
 		},
 		primaryButtonText: {
 			color: '#fff',
-			fontSize: 15,
-			fontWeight: '600',
+			fontSize: 16,
+			fontWeight: '700',
+			textTransform: 'uppercase',
+			letterSpacing: 0.5,
 		},
 		statsGrid: {
 			flexDirection: 'row',
@@ -1142,50 +1125,50 @@ export default function AdminDashboard() {
 		statCard: {
 			flex: 1,
 			minWidth: 160,
-			backgroundColor: '#FFFFFF',
+			backgroundColor: palette.card,
 			borderRadius: 16,
 			padding: 16,
 			borderWidth: 1,
-			borderColor: '#E2E8F0',
+			borderColor: palette.border,
 		},
 		statIconWrapper: {
-			width: 36,
-			height: 36,
-			borderRadius: 10,
+			width: 40,
+			height: 40,
+			borderRadius: 12,
 			justifyContent: 'center',
 			alignItems: 'center',
 			marginBottom: 12,
 		},
 		statLabel: {
-			color: '#475569',
+			color: palette.softText,
 			fontSize: 13,
 		},
 		statValue: {
 			fontSize: 24,
 			fontWeight: '700',
-			color: '#0F172A',
+			color: palette.text,
 			marginVertical: 4,
 		},
 		statMeta: {
-			color: '#64748B',
+			color: palette.muted,
 			fontSize: 12,
 		},
 		panel: {
-			backgroundColor: '#FFFFFF',
-			borderRadius: 20,
+			backgroundColor: palette.card,
+			borderRadius: 24,
 			padding: 20,
 			borderWidth: 1,
-			borderColor: '#E2E8F0',
-			shadowColor: '#0F172A',
-			shadowOpacity: 0.04,
-			shadowRadius: 12,
-			shadowOffset: { width: 0, height: 4 },
-			elevation: 3,
+			borderColor: palette.border,
+			shadowColor: '#000000',
+			shadowOpacity: 0.06,
+			shadowRadius: 14,
+			shadowOffset: { width: 0, height: 8 },
+			elevation: 5,
 			marginBottom: 24,
 		},
 		tabsRow: {
 			flexDirection: 'row',
-			backgroundColor: '#F1F5F9',
+			backgroundColor: '#EAF4F6',
 			borderRadius: 999,
 			padding: 4,
 			marginBottom: 16,
@@ -1200,19 +1183,19 @@ export default function AdminDashboard() {
 			gap: 6,
 		},
 		tabButtonActive: {
-			backgroundColor: '#FFFFFF',
+			backgroundColor: '#fff',
 			shadowColor: '#94A3B8',
-			shadowOpacity: 0.25,
-			shadowRadius: 6,
-			shadowOffset: { width: 0, height: 3 },
+			shadowOpacity: 0.3,
+			shadowRadius: 8,
+			shadowOffset: { width: 0, height: 4 },
 			elevation: 3,
 		},
 		tabText: {
-			color: '#64748B',
+			color: palette.muted,
 			fontWeight: '600',
 		},
 		tabTextActive: {
-			color: '#0F172A',
+			color: palette.text,
 		},
 		panelHeader: {
 			flexDirection: 'row',
@@ -1225,85 +1208,86 @@ export default function AdminDashboard() {
 		sectionTitle: {
 			fontSize: 18,
 			fontWeight: '700',
-			color: '#0F172A',
+			color: palette.text,
 		},
 		sectionSubtitle: {
-			color: '#64748B',
+			color: palette.muted,
 			marginTop: 2,
 		},
 		secondaryButton: {
 			flexDirection: 'row',
 			alignItems: 'center',
-			backgroundColor: '#E2E8F0',
+			backgroundColor: '#E2F6F8',
 			borderRadius: 999,
 			paddingHorizontal: 14,
 			paddingVertical: 8,
 			gap: 6,
 		},
 		secondaryButtonText: {
-			color: '#0F172A',
+			color: palette.primaryDark,
 			fontWeight: '600',
 			fontSize: 13,
 		},
 		utilityRow: {
 			flexDirection: 'row',
-			justifyContent: 'space-between',
 			gap: 12,
 			marginBottom: 16,
-			flexWrap: 'wrap',
 		},
 		searchBar: {
 			flexDirection: 'row',
 			alignItems: 'center',
-			backgroundColor: '#F8FAFC',
-			borderRadius: 12,
-			paddingHorizontal: 14,
+			backgroundColor: '#F8FBFC',
+			borderRadius: 14,
+			paddingHorizontal: 16,
 			flex: 1,
 			borderWidth: 1,
-			borderColor: '#E2E8F0',
-			gap: 8,
+			borderColor: palette.border,
+			gap: 10,
+			minHeight: 48,
+		},
+		searchBarOrders: {
+			paddingVertical: 4,
 		},
 		searchInput: {
 			flex: 1,
-			color: '#0F172A',
+			color: palette.text,
+			fontSize: 15,
 		},
-		orderFilter: {
+		searchActionButton: {
+			backgroundColor: palette.primaryDark,
+			paddingHorizontal: 16,
+			paddingVertical: 8,
+			borderRadius: 999,
 			flexDirection: 'row',
 			alignItems: 'center',
-			gap: 8,
-			flexWrap: 'wrap',
+			gap: 6,
 		},
-		orderInput: {
-			width: 140,
-			backgroundColor: '#F8FAFC',
-			borderRadius: 12,
-			borderWidth: 1,
-			borderColor: '#E2E8F0',
-			paddingHorizontal: 12,
-			color: '#0F172A',
-			height: 44,
+		searchActionText: {
+			color: '#fff',
+			fontWeight: '700',
 		},
 		tabContent: {
 			borderWidth: 1,
-			borderColor: '#E2E8F0',
-			borderRadius: 16,
+			borderColor: palette.border,
+			borderRadius: 18,
 			padding: 8,
-			backgroundColor: '#FFFFFF',
+			backgroundColor: palette.card,
 		},
 		loadingState: {
 			alignItems: 'center',
 			paddingVertical: 24,
+			gap: 8,
 		},
 		loadingText: {
-			marginTop: 8,
-			color: '#475569',
+			color: palette.softText,
 		},
 		errorText: {
-			color: '#B91C1C',
+			color: palette.danger,
 			padding: 12,
+			textAlign: 'center',
 		},
 		emptyText: {
-			color: '#64748B',
+			color: palette.muted,
 			padding: 16,
 			textAlign: 'center',
 		},
@@ -1311,35 +1295,37 @@ export default function AdminDashboard() {
 			flexDirection: 'row',
 			paddingVertical: 12,
 			borderBottomWidth: 1,
-			borderBottomColor: '#E2E8F0',
+			borderBottomColor: palette.border,
 		},
 		tableHeaderCell: {
 			fontSize: 12,
 			fontWeight: '700',
 			textTransform: 'uppercase',
-			color: '#94A3B8',
+			color: palette.muted,
+			paddingHorizontal: 12,
 		},
 		tableRow: {
 			flexDirection: 'row',
 			paddingVertical: 14,
 			borderBottomWidth: 1,
-			borderBottomColor: '#F1F5F9',
+			borderBottomColor: '#F1F4F8',
 		},
 		tableCell: {
 			justifyContent: 'center',
-			paddingHorizontal: 8,
+			paddingHorizontal: 12,
 			flexShrink: 1,
 		},
 		tableCellText: {
-			color: '#0F172A',
+			color: palette.text,
 			flexWrap: 'wrap',
 		},
 		cellTitle: {
-			color: '#0F172A',
+			color: palette.text,
 			fontWeight: '600',
+			fontSize: 12,
 		},
 		cellSubtitle: {
-			color: '#94A3B8',
+			color: palette.muted,
 			fontSize: 12,
 		},
 		stockBadge: {
@@ -1350,6 +1336,8 @@ export default function AdminDashboard() {
 			color: '#14532D',
 			fontWeight: '600',
 			overflow: 'hidden',
+			minWidth: 44,
+			textAlign: 'center',
 		},
 		stockBadgeLow: {
 			backgroundColor: '#FEF3C7',
@@ -1392,10 +1380,10 @@ export default function AdminDashboard() {
 			minWidth: 96,
 		},
 		rowActionPrimary: {
-			backgroundColor: '#2563EB',
+			backgroundColor: palette.info,
 		},
 		rowActionDanger: {
-			backgroundColor: '#DC2626',
+			backgroundColor: palette.danger,
 		},
 		rowActionText: {
 			color: '#FFFFFF',
@@ -1411,17 +1399,26 @@ export default function AdminDashboard() {
 			paddingHorizontal: 10,
 		},
 		rowActionGhostText: {
-			color: '#0F172A',
+			color: palette.text,
+		},
+		iconActionButton: {
+			padding: 6,
+			borderRadius: 999,
+			alignItems: 'center',
+			justifyContent: 'center',
+		},
+		iconActionDisabled: {
+			opacity: 0.35,
 		},
 		contactWrapper: {
 			gap: 2,
 		},
 		contactText: {
-			color: '#0F172A',
+			color: palette.text,
 			fontWeight: '600',
 		},
 		contactSubText: {
-			color: '#94A3B8',
+			color: palette.muted,
 			fontSize: 12,
 		},
 		textCenter: {
@@ -1429,6 +1426,135 @@ export default function AdminDashboard() {
 		},
 		textRight: {
 			textAlign: 'right',
+		},
+		userDirectory: {
+			gap: 16,
+		},
+		userList: {
+			gap: 8,
+		},
+		userListItem: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 12,
+			backgroundColor: '#F7FAFB',
+			borderRadius: 14,
+			padding: 14,
+			borderWidth: 1,
+			borderColor: palette.border,
+		},
+		userListItemActive: {
+			borderColor: palette.primary,
+			backgroundColor: '#E8FBFD',
+		},
+		userAvatar: {
+			width: 40,
+			height: 40,
+			borderRadius: 20,
+			backgroundColor: palette.primary,
+			justifyContent: 'center',
+			alignItems: 'center',
+		},
+		userAvatarText: {
+			color: '#fff',
+			fontWeight: '700',
+		},
+		userListMeta: {
+			flex: 1,
+		},
+		userListName: {
+			color: palette.text,
+			fontWeight: '600',
+		},
+		userListEmail: {
+			color: palette.muted,
+			fontSize: 12,
+		},
+		userRolePill: {
+			paddingHorizontal: 10,
+			paddingVertical: 4,
+			borderRadius: 999,
+			backgroundColor: '#E0F2FE',
+			color: palette.info,
+			fontWeight: '700',
+			fontSize: 12,
+		},
+		userRolePillActive: {
+			backgroundColor: palette.primary,
+			color: '#fff',
+		},
+		userDetailWrapper: {
+			backgroundColor: '#F7FAFB',
+			borderRadius: 18,
+			padding: 16,
+			borderWidth: 1,
+			borderColor: palette.border,
+		},
+		userHint: {
+			color: palette.muted,
+			textAlign: 'center',
+		},
+		userDetailCard: {
+			gap: 12,
+		},
+		userDetailHeader: {
+			flexDirection: 'row',
+			justifyContent: 'space-between',
+			alignItems: 'flex-start',
+			gap: 12,
+		},
+		userDetailName: {
+			color: palette.text,
+			fontSize: 18,
+			fontWeight: '700',
+		},
+		userDetailEmail: {
+			color: palette.muted,
+		},
+		roleBadgeExpanded: {
+			paddingHorizontal: 12,
+			paddingVertical: 4,
+			borderRadius: 999,
+			backgroundColor: '#E0E7FF',
+			color: '#312E81',
+			fontWeight: '700',
+		},
+		userDetailRow: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 8,
+		},
+		userDetailLabel: {
+			color: palette.softText,
+			fontWeight: '600',
+		},
+		userDetailValue: {
+			color: palette.text,
+			flex: 1,
+		},
+		userDetailActions: {
+			flexDirection: 'row',
+			gap: 12,
+			flexWrap: 'wrap',
+		},
+		detailButton: {
+			flexDirection: 'row',
+			alignItems: 'center',
+			gap: 8,
+			borderRadius: 999,
+			paddingHorizontal: 16,
+			paddingVertical: 10,
+		},
+		detailButtonPrimary: {
+			backgroundColor: palette.info,
+		},
+		detailButtonDanger: {
+			backgroundColor: palette.danger,
+		},
+		detailButtonText: {
+			color: '#fff',
+			fontWeight: '700',
+			fontSize: 12,
 		},
 	});
 

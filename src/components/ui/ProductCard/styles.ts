@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 20,
     alignItems: "center",
-    minHeight: 220,
+    minHeight: 240,
     justifyContent: "space-between",
   },
   imageWrapper: {
@@ -39,6 +39,13 @@ export const styles = StyleSheet.create({
     color: "#333",
     textAlign: "center",
     minHeight: 40,
+  },
+  meta: {
+    fontSize: 12,
+    color: "#556070",
+    textAlign: "center",
+    marginTop: 4,
+    minHeight: 32,
   },
   price: {
     fontSize: 18,
