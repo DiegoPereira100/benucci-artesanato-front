@@ -27,6 +27,7 @@ import { ProductModal } from '@/components/ui/ProductModal';
 import { productService } from '@/services/productService';
 import { categoryService, CategoryDTO } from '@/services/categoryService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Pagination } from '@/components/ui/Pagination';
 
 export default function ExploreScreen() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -85,9 +86,24 @@ export default function ExploreScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, { id: number; name: string }>>({});
 
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isClientMode, setIsClientMode] = useState(false);
+
   useEffect(() => {
-    loadInitialData();
-  }, []);
+    const timer = setTimeout(() => {
+      const isFiltering = activeCategoryId !== null || searchQuery.trim() !== '' || priceSort !== null || alphaSort;
+      setIsClientMode(isFiltering);
+      if (isFiltering) {
+        fetchProducts(0, 1000);
+      } else {
+        fetchProducts(0, 10);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [activeCategoryId, searchQuery, priceSort, alphaSort]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -188,7 +204,7 @@ export default function ExploreScreen() {
     setLocation(extractedLocation);
   }, []);
 
-  const loadInitialData = async () => {
+  const fetchProducts = async (pageNumber: number, pageSize: number = 10) => {
     try {
       setLoading(true);
       setError(null);
@@ -213,7 +229,9 @@ export default function ExploreScreen() {
         }
       }
 
-      const productsData = await productService.getAllProducts();
+      const result = await productService.getProductsPage(pageNumber, pageSize);
+      const productsData = result.items;
+      
       const patchedProducts = productsData.map((product) => {
         const override = overrides[String(product.id)];
         if (override) {
@@ -226,6 +244,16 @@ export default function ExploreScreen() {
         return product;
       });
       setProducts(patchedProducts);
+      
+      // If we fetched a large page (filtering mode), we handle pagination on client side
+      if (pageSize > 10) {
+        setPage(0);
+        // Total pages will be calculated in filterProducts or render
+      } else {
+        setPage(result.page);
+        setTotalPages(result.totalPages);
+      }
+
       await loadCategories();
       
       if (productsData.length === 0) {
@@ -261,50 +289,21 @@ export default function ExploreScreen() {
     }
   };
 
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      setError(null);
-      const productsData = await productService.getAllProducts();
-      const overridesRaw = await AsyncStorage.getItem('@product_category_overrides');
-      let overrides: Record<string, { id: number; name: string }> = { ...categoryOverrides };
-      if (overridesRaw) {
-        try {
-          const parsed = JSON.parse(overridesRaw);
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            overrides = parsed;
-            setCategoryOverrides(parsed);
-          }
-        } catch (parseErr) {
-          console.warn('products.tsx -> failed to parse overrides during refresh', parseErr);
-        }
-      }
+  const loadInitialData = () => fetchProducts(0);
 
-      const patchedProducts = productsData.map((product) => {
-        const override = overrides[String(product.id)];
-        if (override) {
-          return {
-            ...product,
-            category: override.name,
-            categoryId: override.id,
-          };
-        }
-        return product;
-      });
-      setProducts(patchedProducts);
-      await loadCategories();
-    } catch (error: any) {
-      console.error('Erro ao atualizar produtos:', error);
-      
-      if (error?.response?.status === 403) {
-  toast.showInfo('Acesso Negado', 'Você precisa estar logado para visualizar os produtos.');
-        router.push('/(auth)/login');
-      } else {
-  toast.showError('Erro', 'Não foi possível atualizar os produtos');
-      }
-    } finally {
-      setRefreshing(false);
+  const handlePageChange = (newPage: number) => {
+    if (isClientMode) {
+      setPage(newPage);
+    } else {
+      fetchProducts(newPage, 10);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    const isFiltering = activeCategoryId !== null || searchQuery.trim() !== '' || priceSort !== null || alphaSort;
+    await fetchProducts(0, isFiltering ? 1000 : 10);
+    setRefreshing(false);
   };
 
   const filterProducts = useCallback(() => {
@@ -340,7 +339,11 @@ export default function ExploreScreen() {
     }
 
     setFilteredProducts(filtered);
-  }, [products, activeCategoryId, searchQuery, priceSort, alphaSort, categoryOverrides]);
+    
+    if (isClientMode) {
+      setTotalPages(Math.ceil(filtered.length / 10));
+    }
+  }, [products, activeCategoryId, searchQuery, priceSort, alphaSort, categoryOverrides, isClientMode]);
 
   const handleProductPress = useCallback((product: Product) => {
     setSelectedProduct(product);
@@ -506,54 +509,65 @@ export default function ExploreScreen() {
     />
   ), [handleProductPress, productLayout.cardWidth]);
 
-  const renderEmptyList = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons 
-        name={error ? "alert-circle-outline" : "search-outline"} 
-        size={64} 
-        color={error ? "#FF6B6B" : "#CCCCCC"} 
-      />
-      <Text style={styles.emptyText}>
-        {error || 'Nenhum produto encontrado'}
-      </Text>
-      <Text style={styles.emptySubText}>
-        {error 
-          ? 'Verifique sua conexão e tente novamente'
-          : searchQuery 
-            ? 'Tente buscar por outro termo' 
-            : 'Não há produtos nesta categoria'
-        }
-      </Text>
-      <TouchableOpacity 
-        style={styles.retryButton}
-        onPress={loadInitialData}
-      >
-        <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
-        <Text style={styles.retryButtonText}>Tentar Novamente</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderEmptyList = () => {
+    if (loading) {
+      return (
+        <View style={[styles.emptyContainer, { paddingVertical: 100 }]}>
+          <ActivityIndicator size="large" color="#00BCD4" />
+          <Text style={styles.loadingText}>Carregando produtos...</Text>
+        </View>
+      );
+    }
 
-  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#00BCD4" />
-        <Text style={styles.loadingText}>Carregando produtos...</Text>
+      <View style={styles.emptyContainer}>
+        <Ionicons 
+          name={error ? "alert-circle-outline" : "search-outline"} 
+          size={64} 
+          color={error ? "#FF6B6B" : "#CCCCCC"} 
+        />
+        <Text style={styles.emptyText}>
+          {error || 'Nenhum produto encontrado'}
+        </Text>
+        <Text style={styles.emptySubText}>
+          {error 
+            ? 'Verifique sua conexão e tente novamente'
+            : searchQuery 
+              ? 'Tente buscar por outro termo' 
+              : 'Não há produtos nesta categoria'
+          }
+        </Text>
+        <TouchableOpacity 
+          style={styles.retryButton}
+          onPress={() => fetchProducts(0)}
+        >
+          <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.retryButtonText}>Tentar Novamente</Text>
+        </TouchableOpacity>
       </View>
     );
-  }
+  };
+
+  const visibleProducts = useMemo(() => {
+    if (isClientMode) {
+      const start = page * 10;
+      const end = start + 10;
+      return filteredProducts.slice(start, end);
+    }
+    return filteredProducts;
+  }, [filteredProducts, page, isClientMode]);
 
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
         key={productLayout.columns}
-        data={filteredProducts}
+        data={loading ? [] : visibleProducts}
         renderItem={renderProduct}
         keyExtractor={(item) => item.id.toString()}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmptyList}
         numColumns={productLayout.columns}
-        columnWrapperStyle={filteredProducts.length > 0 && productLayout.columns > 1
+        columnWrapperStyle={!loading && visibleProducts.length > 0 && productLayout.columns > 1
           ? [styles.productRow, { paddingHorizontal: productLayout.horizontalPadding }]
           : undefined}
         showsVerticalScrollIndicator={false}
@@ -563,6 +577,17 @@ export default function ExploreScreen() {
         keyboardShouldPersistTaps="handled"
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        ListFooterComponent={
+          !loading && filteredProducts.length > 0 ? (
+            <View style={{ paddingBottom: 20 }}>
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            </View>
+          ) : null
+        }
       />
 
       <ProductModal
@@ -788,6 +813,7 @@ const styles = StyleSheet.create({
   emptyContainer: {
     paddingVertical: 60,
     paddingHorizontal: 40,
+    marginTop: 80,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -818,5 +844,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  pagination: {
+    marginTop: 16,
+    marginBottom: 24,
+    paddingHorizontal: 20,
   },
 });

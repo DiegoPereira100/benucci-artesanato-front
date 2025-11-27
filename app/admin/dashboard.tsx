@@ -24,6 +24,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import ProductEditModal from '@/components/admin/ProductEditModal';
 import UserEditModal from '@/components/admin/UserEditModal';
 import toast from '../../src/utils/toast';
+import { Pagination } from '@/components/ui/Pagination';
 
 function mapOrderStatus(status: string) {
 	switch ((status || '').toLowerCase()) {
@@ -103,6 +104,10 @@ export default function AdminDashboard() {
 	const [searchQuery, setSearchQuery] = useState('');
 
 	const [products, setProducts] = useState<Product[]>([]);
+	const [page, setPage] = useState(0);
+	const [totalPages, setTotalPages] = useState(0);
+	const [totalProducts, setTotalProducts] = useState(0);
+	const [lowStockCount, setLowStockCount] = useState(0);
 	const [users, setUsers] = useState<User[]>([]);
 	const [orders, setOrders] = useState<any[]>([]);
 
@@ -131,7 +136,7 @@ export default function AdminDashboard() {
 	const normalizeEmailValue = (value?: string | null) => (value ?? '').trim().toLowerCase();
 
 	useEffect(() => {
-		if (selectedTab === 'products') fetchProducts();
+		if (selectedTab === 'products') fetchProducts(0);
 		if (selectedTab === 'users') fetchUsers();
 	}, [selectedTab]);
 
@@ -141,7 +146,7 @@ export default function AdminDashboard() {
 
 	useEffect(() => {
 		if (isFocused && selectedTab === 'products') {
-			fetchProducts();
+			fetchProducts(page);
 		}
 	}, [isFocused, selectedTab]);
 
@@ -179,18 +184,40 @@ export default function AdminDashboard() {
 		}
 	}, [selectedTab, activeUser]);
 
-	async function fetchProducts() {
+	async function fetchProducts(pageNumber: number = 0) {
 		setError(null);
 		setLoading(true);
 		try {
-			const res = await productService.getAllProducts();
-			setProducts(res || []);
+			const res = await productService.getProductsPage(pageNumber, 10);
+			setProducts(res.items || []);
+			setPage(res.page);
+			setTotalPages(res.totalPages);
+			setTotalProducts(res.totalItems);
+			
+			// Fetch stats separately to avoid backend changes
+			fetchStats();
 		} catch (e: any) {
 			setError('Erro ao buscar produtos');
 			console.error(e);
 		} finally {
 			setLoading(false);
 		}
+	}
+
+	async function fetchStats() {
+		try {
+			// Fetch a large page to calculate global stats
+			const res = await productService.getProductsPage(0, 1000);
+			const allItems = res.items || [];
+			const lowStock = allItems.filter((p) => p.stock <= 5).length;
+			setLowStockCount(lowStock);
+		} catch (e) {
+			console.error('Erro ao buscar estatísticas:', e);
+		}
+	}
+
+	function handlePageChange(newPage: number) {
+		fetchProducts(newPage);
 	}
 
 	async function openEditModal(productId: number) {
@@ -440,15 +467,14 @@ export default function AdminDashboard() {
 		);
 	}, [orders, normalizedSearch]);
 
-	const lowStock = products.filter((p) => p.stock <= 5).length;
 	const adminCount = users.filter((u) => (u.role ?? u.type ?? '').toString().toUpperCase() === 'ADMIN').length;
 
 		const statsCards = [
 			{
 				key: 'products',
 				label: 'Produtos cadastrados',
-				value: products.length,
-				meta: lowStock ? `${lowStock} itens com estoque baixo` : 'Estoque saudável',
+				value: totalProducts,
+				meta: lowStockCount ? `${lowStockCount} itens com estoque baixo` : 'Estoque saudável',
 				icon: 'cube-outline' as const,
 				tint: '#DBEAFE',
 			},
@@ -841,7 +867,16 @@ export default function AdminDashboard() {
 
 		const renderCurrentTab = () => {
 			if (selectedTab === 'products') {
-				return renderTable(productColumns, filteredProducts, 'Nenhum produto cadastrado.');
+				return (
+					<View>
+						{renderTable(productColumns, filteredProducts, 'Nenhum produto cadastrado.')}
+						<Pagination
+							currentPage={page}
+							totalPages={totalPages}
+							onPageChange={handlePageChange}
+						/>
+					</View>
+				);
 			}
 			if (selectedTab === 'users') {
 				return renderUserDirectory();

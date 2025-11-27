@@ -446,8 +446,17 @@ export const productService = {
       await removeCategoryOverride(id);
     } catch (error: any) {
       console.error('productService.deleteProduct -> error', error?.response ?? error);
-      if (error?.response) {
+      if (error?.response?.data) {
         console.error('productService.deleteProduct -> response body:', error.response.data);
+        const backendMessage = error.response.data.message || error.response.data.error;
+        
+        if (typeof backendMessage === 'string' && backendMessage.includes('violates foreign key constraint')) {
+           throw new Error('Não é possível excluir este produto pois ele já foi comprado em pedidos anteriores.');
+        }
+        
+        if (backendMessage) {
+            throw new Error(backendMessage);
+        }
       }
       throw error;
     }
