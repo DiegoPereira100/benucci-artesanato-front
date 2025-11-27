@@ -102,7 +102,10 @@ export default function CartScreen() {
         }
 
         // Montar payload esperado pelo backend
-        const items = cartItems.map(ci => ({ productId: ci.product.id, quantity: ci.quantity }));
+        const items = cartItems.map(ci => ({
+          productId: Number(ci.product.id),  // força ser number
+          quantity: Number(ci.quantity),     // força ser number
+        }));
 
         const orderPayload: OrderRequestDTO = {
           userId: baseUser.id,
@@ -111,6 +114,8 @@ export default function CartScreen() {
           paymentMethod: 'MERCADO_PAGO',
           items,
         };
+
+
 
         console.log('Criando pedido com payload:', orderPayload);
 
@@ -355,7 +360,7 @@ export default function CartScreen() {
         confirmText="Remover"
         cancelText="Cancelar"
         onCancel={() => { setConfirmVisible(false); setConfirmTarget(null); }}
-  onConfirm={() => { if (confirmTarget) { removeFromCart(confirmTarget.id); setConfirmVisible(false); setConfirmTarget(null); toast.showSuccess('Removido', `"${confirmTarget.name}" removido do carrinho.`); } }}
+        onConfirm={() => { if (confirmTarget) { removeFromCart(confirmTarget.id); setConfirmVisible(false); setConfirmTarget(null); toast.showSuccess('Removido', `"${confirmTarget.name}" removido do carrinho.`); } }}
       />
     </SafeAreaView>
   );
