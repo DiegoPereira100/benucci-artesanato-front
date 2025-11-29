@@ -145,23 +145,11 @@ export default function LoginScreen() {
                 <Text style={styles.errorText}>{errors.password.message}</Text>
               )}
             </View>
-            {isLoading ? (
-              <View style={{
-                backgroundColor: '#00BCD4',
-                padding: 16,
-                borderRadius: 8,
-                alignItems: 'center',
-                marginTop: 20,
-              }}>
-                <ActivityIndicator color="#fff" />
-              </View>
-            ) : (
-              <Button
-                title="Entrar"
-                onPress={handleSubmit(handleLogin)}
-                disabled={isLoading}
-              />
-            )}
+            <Button
+              title="Entrar"
+              onPress={handleSubmit(handleLogin)}
+              isLoading={isLoading}
+            />
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Não tem uma conta? </Text>

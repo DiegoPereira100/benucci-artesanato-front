@@ -476,7 +476,7 @@ export default function AdminDashboard() {
 				value: totalProducts,
 				meta: lowStockCount ? `${lowStockCount} itens com estoque baixo` : 'Estoque saudável',
 				icon: 'cube-outline' as const,
-				tint: '#DBEAFE',
+				tint: '#00bbd45d',
 			},
 			{
 				key: 'users',
@@ -484,7 +484,7 @@ export default function AdminDashboard() {
 				value: users.length,
 				meta: adminCount ? `${adminCount} administradores` : 'Nenhum admin adicional',
 				icon: 'people-outline' as const,
-				tint: '#E0F2FE',
+				tint: '#00bbd45d',
 			},
 			{
 				key: 'orders',
@@ -492,7 +492,7 @@ export default function AdminDashboard() {
 				value: orders.length,
 				meta: orders.length ? 'Dados atualizados' : 'Busque pelo ID do cliente',
 				icon: 'receipt-outline' as const,
-				tint: '#DCFCE7',
+				tint: '#00bbd45d',
 			},
 		];
 

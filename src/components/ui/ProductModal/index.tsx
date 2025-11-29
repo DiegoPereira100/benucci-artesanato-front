@@ -139,7 +139,7 @@ export function ProductModal({ visible, product, onClose, onAddToCart }: Product
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['#00BCD4', '#2196F3']}
+              colors={['#00BCD4', '#00BCD4']}
               style={styles.addToCartGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}

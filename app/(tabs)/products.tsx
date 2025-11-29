@@ -394,7 +394,7 @@ export default function ExploreScreen() {
             activeOpacity={0.85}
             onPress={() => router.push('/(tabs)/profile')}
           >
-            <LinearGradient colors={['#00BCD4', '#2196F3']} style={styles.avatar}>
+            <LinearGradient colors={['#00BCD4', '#00BCD4']} style={styles.avatar}>
               {user?.name ? (
                 <Text style={styles.avatarText}>{getUserInitials(user.name)}</Text>
               ) : (

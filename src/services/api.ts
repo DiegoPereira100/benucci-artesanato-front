@@ -568,11 +568,19 @@ class ApiService {
    */
   async createOrder(orderData: OrderRequestDTO): Promise<OrderResponseDTO> {
     try {
-      const response = await this.api.post<OrderResponseDTO>('/orders', orderData);
+      // Tenta criar via PaymentController para garantir o retorno do link de pagamento
+      console.log('Criando pedido via /api/payments/preference');
+      const response = await this.api.post<any>('/api/payments/preference', orderData);
       return response.data;
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error);
-      throw error;
+    } catch (error: any) {
+      console.warn('Erro em /api/payments/preference, tentando fallback para /orders', error?.message);
+      try {
+        const response = await this.api.post<OrderResponseDTO>('/orders', orderData);
+        return response.data;
+      } catch (e) {
+        console.error('Erro ao criar pedido:', e);
+        throw e;
+      }
     }
   }
 
@@ -713,10 +721,16 @@ export interface OrderRequestDTO {
 }
 
 export interface OrderResponseDTO {
-  id: number;
-  mpPreferenceId: string;
-  status: string;
-  paymentStatus: string;
+  id?: number;
+  mpPreferenceId?: string;
+  preferenceId?: string;
+  status?: string;
+  orderStatus?: string;
+  paymentStatus?: string;
+  initPoint?: string;
+  sandboxLink?: string;
+  mpInitPoint?: string;
+  [key: string]: any;
 }
 
 // Exportar instância única

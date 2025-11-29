@@ -260,7 +260,7 @@ export default function CartScreen() {
         onPress={() => router.push('/(tabs)/products')}
       >
         <LinearGradient
-          colors={['#00BCD4', '#2196F3']}
+          colors={['#00BCD4', '#00BCD4']}
           style={styles.shopButtonGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
@@ -302,7 +302,7 @@ export default function CartScreen() {
           disabled={checkoutLoading}
         >
           <LinearGradient
-            colors={['#00BCD4', '#2196F3']}
+            colors={['#00BCD4', '#00BCD4']}
             style={styles.checkoutGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}

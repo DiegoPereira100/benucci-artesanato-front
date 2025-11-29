@@ -282,14 +282,14 @@ export default function ProfileScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.profileHeader}>
-            <LinearGradient colors={['#00BCD4', '#2196F3']} style={styles.avatar}>
+            <LinearGradient colors={['#00BCD4', '#00BCD4']} style={styles.avatar}>
               <Text style={styles.avatarText}>{getInitials(formData.name || user?.name)}</Text>
             </LinearGradient>
             <Text style={styles.name}>{formData.name || user?.email}</Text>
             <Text style={styles.email}>{formData.email}</Text>
             {loading && (
               <View style={styles.loadingInline}>
-                <ActivityIndicator size="small" color="#2196F3" />
+                <ActivityIndicator size="small" color="#00BCD4" />
                 <Text style={styles.loadingInlineText}>Atualizando perfil...</Text>
               </View>
             )}
@@ -441,7 +441,7 @@ export default function ProfileScreen() {
               style={styles.quickItem}
               onPress={() => toast.showInfo('Em breve', 'Histórico de pedidos estará disponível em breve.')}
             >
-              <Ionicons name="receipt-outline" size={20} color="#2196F3" />
+              <Ionicons name="receipt-outline" size={20} color="#00BCD4" />
               <View style={styles.quickTextWrapper}>
                 <Text style={styles.quickItemTitle}>Histórico de pedidos</Text>
                 <Text style={styles.quickItemSubtitle}>Acompanhe suas compras recentes</Text>
@@ -453,7 +453,7 @@ export default function ProfileScreen() {
               style={styles.quickItem}
               onPress={() => toast.showInfo('Em breve', 'Gerenciamento de endereços em desenvolvimento.')}
             >
-              <Ionicons name="home-outline" size={20} color="#2196F3" />
+              <Ionicons name="home-outline" size={20} color="#00BCD4" />
               <View style={styles.quickTextWrapper}>
                 <Text style={styles.quickItemTitle}>Endereços salvos</Text>
                 <Text style={styles.quickItemSubtitle}>Cadastre e atualize seus endereços</Text>
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   sectionAction: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2196F3',
+    color: '#00BCD4',
   },
   inputGroup: {
     marginBottom: 14,
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: 8,
-    backgroundColor: '#2196F3',
+    backgroundColor: '#00BCD4',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     marginTop: 12,
-    backgroundColor: '#2196F3',
+    backgroundColor: '#00BCD4',
     borderRadius: 12,
     paddingHorizontal: 28,
     paddingVertical: 12,

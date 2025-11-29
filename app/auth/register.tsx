@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -22,9 +22,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import { AddressParts, sanitizeAddressParts, serializeAddress, formatZipCode } from '../../src/utils/address';
 import { RegisterRequest } from '@/types/auth';
-
-// Tipos de usuário - ajustado para corresponder ao backend
-type UserType = 'user' | 'admin';
 
 // Função para validar CPF
 const validateCPF = (cpf: string) => {
@@ -56,22 +53,15 @@ const validateCPF = (cpf: string) => {
   return true;
 };
 
-// Esquema de validação - ajustado para usar lowercase
+// Esquema de validação
 const addressSchema = z.object({
   street: z.string().min(1, 'Rua é obrigatória'),
   number: z.string().min(1, 'Número é obrigatório'),
-  complement: z
-    .string()
-    .optional()
-    .or(z.literal('')),
+  complement: z.string().optional().or(z.literal('')),
   neighborhood: z.string().min(1, 'Bairro é obrigatório'),
   city: z.string().min(1, 'Cidade é obrigatória'),
-  state: z
-    .string()
-    .regex(/^[A-Za-z]{2}$/, 'UF deve ter 2 letras'),
-  zipCode: z
-    .string()
-    .regex(/^\d{8}$/, 'CEP deve conter 8 dígitos'),
+  state: z.string().regex(/^[A-Za-z]{2}$/, 'UF deve ter 2 letras'),
+  zipCode: z.string().regex(/^\d{8}$/, 'CEP deve conter 8 dígitos'),
 });
 
 const registerSchema = z.object({
@@ -94,7 +84,6 @@ const registerSchema = z.object({
     .min(1, 'Telefone é obrigatório')
     .regex(/^\d{10,11}$/, 'Telefone deve ter 10 ou 11 dígitos'),
   address: addressSchema,
-  type: z.enum(['user', 'admin']), // Mudado para lowercase
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'As senhas não coincidem',
   path: ['confirmPassword'],
@@ -105,7 +94,6 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterScreen() {
   const { register, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedUserType, setSelectedUserType] = useState<UserType>('user'); // Mudado para lowercase
 
   const {
     control,
@@ -130,7 +118,6 @@ export default function RegisterScreen() {
         state: '',
         zipCode: '',
       },
-      type: 'user', // Mudado para lowercase
     },
   });
 
@@ -161,33 +148,25 @@ export default function RegisterScreen() {
     return value.slice(0, 15);
   };
 
-  // Função para obter a cor do tema baseada no tipo de usuário
-  const getThemeColor = () => {
-    return selectedUserType === 'admin' ? '#FF6B35' : '#00BCD4';
-  };
-
   async function handleRegister(data: RegisterFormData) {
     try {
       console.log('=== INICIANDO CADASTRO ===');
-      console.log('Tipo de usuário selecionado:', selectedUserType);
       setIsLoading(true);
 
-      const { confirmPassword, address, type, ...rest } = data;
+      const { confirmPassword, address, ...rest } = data;
       const cleanedCpf = rest.cpf.replace(/\D/g, '');
       const cleanedPhone = rest.phoneNumber.replace(/\D/g, '');
       const sanitizedAddress = sanitizeAddressParts(address);
       const serializedAddress = serializeAddress(sanitizedAddress);
 
-      const normalizedType = type === 'admin' ? 'ADMIN' : 'USER';
-
-      // Backend expects type in uppercase ('USER' | 'ADMIN'), convert before sending
+      // Força o tipo USER
       const payload: RegisterRequest = {
         ...rest,
         cpf: cleanedCpf,
         phoneNumber: cleanedPhone,
         address: serializedAddress,
-        type: normalizedType,
-        role: normalizedType,
+        type: 'USER',
+        role: 'USER',
       };
 
       await register(payload);
@@ -231,6 +210,7 @@ export default function RegisterScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
             <Text style={styles.title}>Criar Conta</Text>
@@ -244,70 +224,6 @@ export default function RegisterScreen() {
             />
           </View>
 
-          {/* Seletor de Tipo de Usuário */}
-          <View style={styles.userTypeSelector}>
-            <TouchableOpacity
-              style={[
-                styles.userTypeButton,
-                styles.userTypeButtonLeft,
-                selectedUserType === 'user' && {
-                  ...styles.userTypeButtonActive,
-                  backgroundColor: getThemeColor(),
-                },
-              ]}
-              onPress={() => {
-                setSelectedUserType('user');
-                setValue('type', 'user');
-                console.log('Tipo selecionado: user');
-              }}
-              disabled={isLoading}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.userTypeButtonText,
-                  selectedUserType === 'user' && styles.userTypeButtonTextActive,
-                ]}
-              >
-                Sou Cliente
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.userTypeButton,
-                styles.userTypeButtonRight,
-                selectedUserType === 'admin' && {
-                  ...styles.userTypeButtonActive,
-                  backgroundColor: getThemeColor(),
-                },
-              ]}
-              onPress={() => {
-                setSelectedUserType('admin');
-                setValue('type', 'admin');
-                console.log('Tipo selecionado: admin');
-              }}
-              disabled={isLoading}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.userTypeButtonText,
-                  selectedUserType === 'admin' && styles.userTypeButtonTextActive,
-                ]}
-              >
-                Sou Admin
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Indicador visual do tipo selecionado */}
-          <View style={styles.typeIndicator}>
-            <Text style={styles.typeIndicatorText}>
-              Cadastrando como: {selectedUserType === 'admin' ? 'Administrador' : 'Cliente'}
-            </Text>
-          </View>
-
           <View style={styles.form}>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Nome Completo</Text>
@@ -319,7 +235,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       errors.name && styles.inputError,
-                      !errors.name && { borderColor: getThemeColor() },
                     ]}
                     placeholder="João Silva"
                     autoCapitalize="words"
@@ -345,7 +260,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       errors.cpf && styles.inputError,
-                      !errors.cpf && { borderColor: getThemeColor() },
                     ]}
                     placeholder="123.456.789-00"
                     keyboardType="numeric"
@@ -376,7 +290,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       errors.email && styles.inputError,
-                      !errors.email && { borderColor: getThemeColor() },
                     ]}
                     placeholder="seu@email.com"
                     keyboardType="email-address"
@@ -404,7 +317,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       errors.phoneNumber && styles.inputError,
-                      !errors.phoneNumber && { borderColor: getThemeColor() },
                     ]}
                     placeholder="(11) 99999-9999"
                     keyboardType="phone-pad"
@@ -437,7 +349,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       addressErrors?.street && styles.inputError,
-                      !addressErrors?.street && { borderColor: getThemeColor() },
                     ]}
                     placeholder="Rua Exemplo"
                     autoCapitalize="words"
@@ -453,29 +364,56 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Número</Text>
-              <Controller
-                control={control}
-                name="address.number"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.number && styles.inputError,
-                      !addressErrors?.number && { borderColor: getThemeColor() },
-                    ]}
-                    placeholder="123"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                    editable={!isLoading}
-                  />
+            <View style={styles.rowContainer}>
+              <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.label}>Número</Text>
+                <Controller
+                  control={control}
+                  name="address.number"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={[
+                        styles.input,
+                        addressErrors?.number && styles.inputError,
+                      ]}
+                      placeholder="123"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value || ''}
+                      editable={!isLoading}
+                    />
+                  )}
+                />
+                {addressErrors?.number?.message && (
+                  <Text style={styles.errorText}>{addressErrors.number.message}</Text>
                 )}
-              />
-              {addressErrors?.number?.message && (
-                <Text style={styles.errorText}>{addressErrors.number.message}</Text>
-              )}
+              </View>
+
+              <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.label}>CEP</Text>
+                <Controller
+                  control={control}
+                  name="address.zipCode"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={[
+                        styles.input,
+                        addressErrors?.zipCode && styles.inputError,
+                      ]}
+                      placeholder="00000-000"
+                      keyboardType="numeric"
+                      maxLength={9}
+                      onBlur={onBlur}
+                      onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 8))}
+                      value={formatZipCode(value || '')}
+                      editable={!isLoading}
+                    />
+                  )}
+                />
+                {addressErrors?.zipCode?.message && (
+                  <Text style={styles.errorText}>{addressErrors.zipCode.message}</Text>
+                )}
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
@@ -488,7 +426,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       addressErrors?.complement && styles.inputError,
-                      !addressErrors?.complement && { borderColor: getThemeColor() },
                     ]}
                     placeholder="Apartamento, bloco, etc."
                     autoCapitalize="sentences"
@@ -514,7 +451,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       addressErrors?.neighborhood && styles.inputError,
-                      !addressErrors?.neighborhood && { borderColor: getThemeColor() },
                     ]}
                     placeholder="Centro"
                     autoCapitalize="words"
@@ -530,116 +466,57 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Cidade</Text>
-              <Controller
-                control={control}
-                name="address.city"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.city && styles.inputError,
-                      !addressErrors?.city && { borderColor: getThemeColor() },
-                    ]}
-                    placeholder="São Paulo"
-                    autoCapitalize="words"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                    editable={!isLoading}
-                  />
+            <View style={styles.rowContainer}>
+              <View style={[styles.inputContainer, { flex: 2, marginRight: 8 }]}>
+                <Text style={styles.label}>Cidade</Text>
+                <Controller
+                  control={control}
+                  name="address.city"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={[
+                        styles.input,
+                        addressErrors?.city && styles.inputError,
+                      ]}
+                      placeholder="São Paulo"
+                      autoCapitalize="words"
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value || ''}
+                      editable={!isLoading}
+                    />
+                  )}
+                />
+                {addressErrors?.city?.message && (
+                  <Text style={styles.errorText}>{addressErrors.city.message}</Text>
                 )}
-              />
-              {addressErrors?.city?.message && (
-                <Text style={styles.errorText}>{addressErrors.city.message}</Text>
-              )}
-            </View>
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Estado (UF)</Text>
-              <Controller
-                control={control}
-                name="address.state"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.state && styles.inputError,
-                      !addressErrors?.state && { borderColor: getThemeColor() },
-                    ]}
-                    placeholder="SP"
-                    autoCapitalize="characters"
-                    maxLength={2}
-                    onBlur={onBlur}
-                    onChangeText={(text) => onChange(text.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2))}
-                    value={(value || '').toUpperCase()}
-                    editable={!isLoading}
-                  />
+              <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.label}>UF</Text>
+                <Controller
+                  control={control}
+                  name="address.state"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={[
+                        styles.input,
+                        addressErrors?.state && styles.inputError,
+                      ]}
+                      placeholder="SP"
+                      autoCapitalize="characters"
+                      maxLength={2}
+                      onBlur={onBlur}
+                      onChangeText={(text) => onChange(text.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2))}
+                      value={(value || '').toUpperCase()}
+                      editable={!isLoading}
+                    />
+                  )}
+                />
+                {addressErrors?.state?.message && (
+                  <Text style={styles.errorText}>{addressErrors.state.message}</Text>
                 )}
-              />
-              {addressErrors?.state?.message && (
-                <Text style={styles.errorText}>{addressErrors.state.message}</Text>
-              )}
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>CEP</Text>
-              <Controller
-                control={control}
-                name="address.zipCode"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.zipCode && styles.inputError,
-                      !addressErrors?.zipCode && { borderColor: getThemeColor() },
-                    ]}
-                    placeholder="00000-000"
-                    keyboardType="numeric"
-                    maxLength={9}
-                    onBlur={onBlur}
-                    onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 8))}
-                    value={formatZipCode(value || '')}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {addressErrors?.zipCode?.message && (
-                <Text style={styles.errorText}>{addressErrors.zipCode.message}</Text>
-              )}
-            </View>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Tipo de Conta</Text>
-              <Controller
-                control={control}
-                name="type"
-                render={({ field: { onChange, value } }) => (
-                  <View style={styles.radioContainer}>
-                    <TouchableOpacity
-                      style={styles.radioOption}
-                      onPress={() => onChange('user')}
-                      disabled={isLoading}
-                    >
-                      <View style={[styles.radio, value === 'user' && styles.radioSelected]}>
-                        {value === 'user' && <View style={styles.radioInner} />}
-                      </View>
-                      <Text style={styles.radioText}>Cliente</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.radioOption}
-                      onPress={() => onChange('admin')}
-                      disabled={isLoading}
-                    >
-                      <View style={[styles.radio, value === 'admin' && styles.radioSelected]}>
-                        {value === 'admin' && <View style={styles.radioInner} />}
-                      </View>
-                      <Text style={styles.radioText}>Administrador</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              />
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
@@ -652,7 +529,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       errors.password && styles.inputError,
-                      !errors.password && { borderColor: getThemeColor() },
                     ]}
                     placeholder="Digite sua senha"
                     secureTextEntry
@@ -678,7 +554,6 @@ export default function RegisterScreen() {
                     style={[
                       styles.input,
                       errors.confirmPassword && styles.inputError,
-                      !errors.confirmPassword && { borderColor: getThemeColor() },
                     ]}
                     placeholder="Digite a senha novamente"
                     secureTextEntry
@@ -694,29 +569,17 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            {isLoading ? (
-              <View style={{
-                backgroundColor: '#00BCD4',
-                padding: 16,
-                borderRadius: 8,
-                alignItems: 'center',
-                marginTop: 20,
-              }}>
-                <ActivityIndicator color="#fff" />
-              </View>
-            ) : (
-              <Button
-                title="Cadastrar"
-                onPress={handleSubmit(handleRegister)}
-                disabled={isLoading}
-              />
-            )}
+            <Button
+              title="Cadastrar"
+              onPress={handleSubmit(handleRegister)}
+              isLoading={isLoading}
+            />
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Já tem uma conta? </Text>
               <Link href="/auth/login" asChild>
                 <TouchableOpacity disabled={isLoading}>
-                  <Text style={[styles.linkText, { color: getThemeColor() }]}>
+                  <Text style={styles.linkText}>
                     Faça login
                   </Text>
                 </TouchableOpacity>
@@ -765,6 +628,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingVertical: 40,
+    paddingBottom: 100, // Extra padding for bottom wave
   },
   header: {
     alignItems: 'center',
@@ -789,65 +653,25 @@ const styles = StyleSheet.create({
     height: 120,
     resizeMode: 'contain',
   },
-  userTypeSelector: {
-    flexDirection: 'row',
-    marginBottom: 10,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#ddd',
-  },
-  userTypeButton: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  userTypeButtonLeft: {
-    borderRightWidth: 1,
-    borderRightColor: '#ddd',
-  },
-  userTypeButtonRight: {
-    borderLeftWidth: 1,
-    borderLeftColor: '#ddd',
-  },
-  userTypeButtonActive: {
-    borderColor: 'transparent',
-  },
-  userTypeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  userTypeButtonTextActive: {
-    color: '#fff',
-  },
-  typeIndicator: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingVertical: 8,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 4,
-  },
-  typeIndicatorText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
   form: {
     width: '100%',
   },
   inputContainer: {
     marginBottom: 16,
   },
+  rowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   groupLabel: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#333',
-    marginTop: 20,
-    marginBottom: 4,
+    color: '#00BCD4',
+    marginTop: 10,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 8,
   },
   label: {
     fontSize: 14,
@@ -857,8 +681,8 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#00BCD4',
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -873,21 +697,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  registerButton: {
+  loadingContainer: {
     backgroundColor: '#00BCD4',
+    padding: 16,
     borderRadius: 8,
-    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  registerButtonDisabled: {
-    opacity: 0.6,
-  },
-  registerButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    marginTop: 20,
   },
   footer: {
     flexDirection: 'row',
@@ -904,40 +719,5 @@ const styles = StyleSheet.create({
     color: '#00BCD4',
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  radioContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 12,
-  },
-  radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#00BCD4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioSelected: {
-    backgroundColor: '#00BCD4',
-    borderColor: '#00BCD4',
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#fff',
-  },
-  radioText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#333',
   },
 });
