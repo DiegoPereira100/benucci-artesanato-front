@@ -48,6 +48,7 @@ export function ProductModal({ visible, product, onClose, onAddToCart }: Product
   };
 
   const totalPrice = product.price * quantity;
+  const isOutOfStock = product.stock === 0;
 
   return (
     <Modal
@@ -67,12 +68,17 @@ export function ProductModal({ visible, product, onClose, onAddToCart }: Product
               {product.image_url ? (
                 <Image
                   source={{ uri: product.image_url }}
-                  style={styles.productImage}
+                  style={[styles.productImage, isOutOfStock && { opacity: 0.7 }]}
                   resizeMode="cover"
                 />
               ) : (
                 <View style={styles.placeholderImage}>
                   <Ionicons name="image-outline" size={80} color="#CCCCCC" />
+                </View>
+              )}
+              {isOutOfStock && (
+                <View style={styles.outOfStockBadge}>
+                  <Text style={styles.outOfStockText}>ESGOTADO</Text>
                 </View>
               )}
             </View>
@@ -101,51 +107,55 @@ export function ProductModal({ visible, product, onClose, onAddToCart }: Product
               <Text style={styles.quantityLabel}>Quantidade</Text>
               <View style={styles.quantityContainer}>
                 <TouchableOpacity
-                  style={[styles.quantityButton, quantity === 1 && styles.quantityButtonDisabled]}
+                  style={[styles.quantityButton, (quantity === 1 || isOutOfStock) && styles.quantityButtonDisabled]}
                   onPress={handleDecrement}
-                  disabled={quantity === 1}
+                  disabled={quantity === 1 || isOutOfStock}
                 >
                   <Ionicons 
                     name="remove" 
                     size={24} 
-                    color={quantity === 1 ? '#CCCCCC' : '#00BCD4'} 
+                    color={(quantity === 1 || isOutOfStock) ? '#CCCCCC' : '#00BCD4'} 
                   />
                 </TouchableOpacity>
 
                 <View style={styles.quantityDisplay}>
-                  <Text style={styles.quantityText}>{quantity}</Text>
+                  <Text style={[styles.quantityText, isOutOfStock && { color: '#999' }]}>{isOutOfStock ? 0 : quantity}</Text>
                 </View>
 
                 <TouchableOpacity
-                  style={styles.quantityButton}
+                  style={[styles.quantityButton, isOutOfStock && styles.quantityButtonDisabled]}
                   onPress={handleIncrement}
+                  disabled={isOutOfStock}
                 >
-                  <Ionicons name="add" size={24} color="#00BCD4" />
+                  <Ionicons name="add" size={24} color={isOutOfStock ? '#CCCCCC' : '#00BCD4'} />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.totalContainer}>
                 <Text style={styles.totalLabel}>Total:</Text>
                 <Text style={styles.totalPrice}>
-                  R$ {totalPrice.toFixed(2).replace('.', ',')}
+                  R$ {isOutOfStock ? '0,00' : totalPrice.toFixed(2).replace('.', ',')}
                 </Text>
               </View>
             </View>
           </ScrollView>
 
           <TouchableOpacity
-            style={styles.addToCartButton}
-            onPress={handleAddToCart}
-            activeOpacity={0.8}
+            style={[styles.addToCartButton, isOutOfStock && styles.addToCartButtonDisabled]}
+            onPress={isOutOfStock ? undefined : handleAddToCart}
+            activeOpacity={isOutOfStock ? 1 : 0.8}
+            disabled={isOutOfStock}
           >
             <LinearGradient
-              colors={['#00BCD4', '#00BCD4']}
+              colors={isOutOfStock ? ['#BDBDBD', '#9E9E9E'] : ['#00BCD4', '#00BCD4']}
               style={styles.addToCartGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Ionicons name="cart" size={24} color="#FFF" />
-              <Text style={styles.addToCartText}>Adicionar ao Carrinho</Text>
+              <Ionicons name={isOutOfStock ? "close-circle" : "cart"} size={24} color="#FFF" />
+              <Text style={styles.addToCartText}>
+                {isOutOfStock ? "Produto Esgotado" : "Adicionar ao Carrinho"}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -326,6 +336,26 @@ const styles = StyleSheet.create({
   addToCartText: {
     color: '#FFFFFF',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  addToCartButtonDisabled: {
+    opacity: 0.9,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: '#FF5252',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    zIndex: 10,
+  },
+  outOfStockText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: 'bold',
   },
 });

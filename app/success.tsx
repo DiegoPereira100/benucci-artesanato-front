@@ -101,7 +101,7 @@ export default function PaymentSuccess() {
       <View style={styles.content}>
         {loading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#FF6B35" />
+            <ActivityIndicator size="large" color="#00BCD4" />
             <Text style={styles.loadingText}>Verificando status do pagamento...</Text>
           </View>
         ) : (
@@ -166,9 +166,9 @@ const styles = StyleSheet.create({
   loadingBox: { alignItems: 'center' },
   loadingText: { marginTop: 12, color: '#666' },
   resultBox: { width: '100%', backgroundColor: '#fff', padding: 20, borderRadius: 12, alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '700', color: '#FF6B35', marginBottom: 8 },
+  title: { fontSize: 20, fontWeight: '700', color: '#00BCD4', marginBottom: 8 },
   statusText: { fontSize: 16, marginBottom: 12 },
   orderInfo: { marginTop: 8, alignItems: 'center' },
-  button: { marginTop: 20, backgroundColor: '#FF6B35', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 },
+  button: { marginTop: 20, backgroundColor: '#00BCD4', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 },
   buttonText: { color: '#fff', fontWeight: '600' },
 });

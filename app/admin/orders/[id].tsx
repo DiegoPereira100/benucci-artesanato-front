@@ -55,7 +55,7 @@ export default function AdminOrderDetails() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color="#00BCD4" />
       </SafeAreaView>
     );
   }
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   content: { padding: 20 },
   header: { marginBottom: 12 },
-  title: { fontSize: 20, fontWeight: '700', color: '#FF6B35' },
+  title: { fontSize: 20, fontWeight: '700', color: '#00BCD4' },
   subtitle: { fontSize: 16, marginTop: 6 },
   muted: { color: '#666', marginTop: 4 },
   section: { backgroundColor: '#fafafa', padding: 12, borderRadius: 10, marginTop: 12 },

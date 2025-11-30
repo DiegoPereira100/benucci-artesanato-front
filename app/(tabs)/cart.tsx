@@ -214,7 +214,7 @@ export default function CartScreen() {
             style={styles.removeButton}
             onPress={() => handleRemove(item.product.id, item.product.name)}
           >
-            <Ionicons name="trash-outline" size={20} color="#F44336" />
+            <Ionicons name="trash-outline" size={20} color="#00BCD4" />
           </TouchableOpacity>
 
           <View style={styles.quantityControl}>

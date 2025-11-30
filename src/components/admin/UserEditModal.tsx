@@ -20,7 +20,7 @@ const defaultForm = {
   role: 'USER' as UserRole,
 };
 
-const PRIMARY = '#FF6B35';
+const PRIMARY = '#00BCD4';
 
 const UserEditModal: React.FC<UserEditModalProps> = ({ visible, user, loading = false, onCancel, onSave }) => {
   const [form, setForm] = useState(defaultForm);
