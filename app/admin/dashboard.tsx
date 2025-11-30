@@ -102,6 +102,8 @@ export default function AdminDashboard() {
 	const { user } = useAuth();
 	const [selectedTab, setSelectedTab] = useState<AdminTabs>('products');
 	const [searchQuery, setSearchQuery] = useState('');
+	const [sortColumn, setSortColumn] = useState<string | null>(null);
+	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
 	const [products, setProducts] = useState<Product[]>([]);
 	const [page, setPage] = useState(0);
@@ -249,8 +251,16 @@ export default function AdminDashboard() {
 			setProducts((prev) => prev.filter((p) => p.id !== id));
 			toast.showSuccess('Produto excluído', 'Produto removido com sucesso.');
 		} catch (e: any) {
-			console.error('Erro ao deletar produto:', e);
-			toast.showError('Erro', e?.message || 'Não foi possível excluir o produto');
+			console.log('Tentativa de exclusão falhou:', e);
+			const msg = e?.message || '';
+			if (msg.includes('pedidos anteriores') || msg.includes('constraint')) {
+				toast.showError(
+					'Produto em uso',
+					'Este produto já foi vendido e não pode ser excluído por questões de integridade.',
+				);
+			} else {
+				toast.showError('Erro', msg || 'Não foi possível excluir o produto');
+			}
 		} finally {
 			setLoading(false);
 			setConfirmVisible(false);
@@ -438,16 +448,41 @@ export default function AdminDashboard() {
 		}
 	}
 
+	const handleSort = (columnKey: string) => {
+		if (sortColumn === columnKey) {
+			setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+		} else {
+			setSortColumn(columnKey);
+			setSortDirection('asc');
+		}
+	};
+
 	const normalizedSearch = searchQuery.trim().toLowerCase();
 
 	const filteredProducts = useMemo(() => {
-		if (!normalizedSearch) return products;
-		return products.filter((p) =>
-			[p.name, p.category, String(p.price)]
-				.filter(Boolean)
-				.some((field) => field!.toString().toLowerCase().includes(normalizedSearch)),
-		);
-	}, [products, normalizedSearch]);
+		let result = products;
+		if (normalizedSearch) {
+			result = result.filter((p) =>
+				[p.name, p.category, String(p.price)]
+					.filter(Boolean)
+					.some((field) => field!.toString().toLowerCase().includes(normalizedSearch)),
+			);
+		}
+		if (sortColumn && selectedTab === 'products') {
+			result = [...result].sort((a, b) => {
+				const valA = a[sortColumn as keyof Product];
+				const valB = b[sortColumn as keyof Product];
+				if (valA === valB) return 0;
+				if (valA === undefined || valA === null) return 1;
+				if (valB === undefined || valB === null) return -1;
+
+				if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+				if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+				return 0;
+			});
+		}
+		return result;
+	}, [products, normalizedSearch, sortColumn, sortDirection, selectedTab]);
 
 	const filteredUsers = useMemo(() => {
 		if (!normalizedSearch) return users;
@@ -459,13 +494,35 @@ export default function AdminDashboard() {
 	}, [users, normalizedSearch]);
 
 	const filteredOrders = useMemo(() => {
-		if (!normalizedSearch) return orders;
-		return orders.filter((o) =>
-			[o?.id, o?.user?.name, o?.status]
-				.filter(Boolean)
-				.some((field) => field!.toString().toLowerCase().includes(normalizedSearch)),
-		);
-	}, [orders, normalizedSearch]);
+		let result = orders;
+		if (normalizedSearch) {
+			result = result.filter((o) =>
+				[o?.id, o?.user?.name, o?.status]
+					.filter(Boolean)
+					.some((field) => field!.toString().toLowerCase().includes(normalizedSearch)),
+			);
+		}
+		if (sortColumn && selectedTab === 'orders') {
+			result = [...result].sort((a, b) => {
+				let valA = a[sortColumn];
+				let valB = b[sortColumn];
+
+				if (sortColumn === 'user') {
+					valA = a.user?.name;
+					valB = b.user?.name;
+				}
+
+				if (valA === valB) return 0;
+				if (valA === undefined || valA === null) return 1;
+				if (valB === undefined || valB === null) return -1;
+
+				if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+				if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+				return 0;
+			});
+		}
+		return result;
+	}, [orders, normalizedSearch, sortColumn, sortDirection, selectedTab]);
 
 	const adminCount = users.filter((u) => (u.role ?? u.type ?? '').toString().toUpperCase() === 'ADMIN').length;
 
@@ -595,15 +652,35 @@ export default function AdminDashboard() {
 				<View>
 					<View style={styles.tableHeader}>
 						{columns.map((column) => (
-							<Text
+							<TouchableOpacity
 								key={column.key}
-								style={[
-									styles.tableHeaderCell,
-									{ flex: column.flex ?? 1, textAlign: column.align ?? 'left' },
-								]}
+								style={{
+									flex: column.flex ?? 1,
+									flexDirection: 'row',
+									alignItems: 'center',
+									justifyContent: alignToJustify(column.align),
+									paddingHorizontal: 4,
+								}}
+								onPress={() => handleSort(column.key)}
+								disabled={column.key === 'actions' || column.key === 'orderActions'}
 							>
-								{column.label}
-							</Text>
+								<Text
+									style={[
+										styles.tableHeaderCell,
+										{ paddingHorizontal: 0, textAlign: column.align ?? 'left' },
+									]}
+								>
+									{column.label}
+								</Text>
+								{sortColumn === column.key && (
+									<Ionicons
+										name={sortDirection === 'asc' ? 'caret-up-outline' : 'caret-down-outline'}
+										size={12}
+										color={palette.softText}
+										style={{ marginLeft: 4 }}
+									/>
+								)}
+							</TouchableOpacity>
 						))}
 					</View>
 

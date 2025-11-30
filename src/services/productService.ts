@@ -445,9 +445,9 @@ export const productService = {
       console.log('productService.deleteProduct -> delete response status:', resp?.status);
       await removeCategoryOverride(id);
     } catch (error: any) {
-      console.error('productService.deleteProduct -> error', error?.response ?? error);
+      // console.error('productService.deleteProduct -> error', error?.response ?? error);
       if (error?.response?.data) {
-        console.error('productService.deleteProduct -> response body:', error.response.data);
+        // console.error('productService.deleteProduct -> response body:', error.response.data);
         const backendMessage = error.response.data.message || error.response.data.error;
         
         if (typeof backendMessage === 'string' && backendMessage.includes('violates foreign key constraint')) {

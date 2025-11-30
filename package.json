@@ -24,7 +24,7 @@
     "expo-status-bar": "~3.0.8",
     "merge-options": "^3.0.4",
     "react": "19.1.0",
-    "react-dom": "^19.1.0",
+    "react-dom": "19.1.0",
     "react-hook-form": "^7.63.0",
     "react-native": "0.81.5",
     "react-native-dotenv": "^3.4.11",
@@ -37,7 +37,9 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@babel/plugin-transform-class-properties": "^7.27.1",
     "@babel/plugin-transform-export-namespace-from": "^7.27.1",
+    "@babel/plugin-transform-private-methods": "^7.27.1",
     "@babel/plugin-transform-runtime": "^7.21.11",
     "@types/babel__core": "^7.20.5",
     "@types/lodash": "^4.17.20",
