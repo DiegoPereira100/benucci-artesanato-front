@@ -31,6 +31,7 @@ import { Pagination } from '@/components/ui/Pagination';
 
 export default function ExploreScreen() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ id: number | null; name: string }>>([
     { id: null, name: 'Tudo' },
@@ -91,19 +92,89 @@ export default function ExploreScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isClientMode, setIsClientMode] = useState(false);
+  const isFetchingAll = React.useRef(false);
+
+  // Otimização: Pré-carregar todos os produtos em segundo plano para tornar os filtros instantâneos
+  useEffect(() => {
+    const prefetchAllProducts = async () => {
+      if (allProducts.length > 0 || isFetchingAll.current) return;
+      
+      try {
+        console.log('products.tsx -> Prefetching all products in background...');
+        isFetchingAll.current = true;
+        
+        // Carregar overrides primeiro
+        const overridesRaw = await AsyncStorage.getItem('@product_category_overrides');
+        let overrides: Record<string, { id: number; name: string }> = {};
+        if (overridesRaw) {
+          const parsed = JSON.parse(overridesRaw);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            overrides = parsed;
+          }
+        }
+
+        const result = await productService.getProductsPage(0, 1000);
+        const productsData = result.items;
+        
+        const patchedProducts = productsData.map((product) => {
+          const override = overrides[String(product.id)];
+          if (override) {
+            return {
+              ...product,
+              category: override.name,
+              categoryId: override.id,
+            };
+          }
+          return product;
+        });
+
+        setAllProducts(patchedProducts);
+        console.log('products.tsx -> Background prefetch complete. Items:', patchedProducts.length);
+      } catch (err) {
+        console.warn('products.tsx -> Background prefetch failed', err);
+      } finally {
+        isFetchingAll.current = false;
+      }
+    };
+
+    // Iniciar o pré-carregamento após um pequeno delay para não competir com a renderização inicial
+    const timer = setTimeout(() => {
+      prefetchAllProducts();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, []); // Executa apenas uma vez na montagem
+
+  // Carregamento inicial dos produtos (página 0, 10 itens)
+  useEffect(() => {
+    fetchProducts(0, 10);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       const isFiltering = activeCategoryId !== null || searchQuery.trim() !== '' || priceSort !== null || alphaSort;
-      setIsClientMode(isFiltering);
+      
       if (isFiltering) {
-        fetchProducts(0, 1000);
+        // Se estamos filtrando, precisamos garantir que temos todos os produtos (Modo Cliente)
+        // Usamos uma ref para evitar chamadas duplicadas enquanto a primeira ainda está em andamento
+        if ((!isClientMode || products.length < 100) && !isFetchingAll.current && allProducts.length === 0) {
+          console.log('products.tsx -> Switching to Client Mode (fetching all products)');
+          fetchProducts(0, 1000);
+        } else {
+          // Se já temos os produtos (do prefetch ou fetch anterior), apenas atualizamos o estado
+          if (!isClientMode) setIsClientMode(true);
+        }
       } else {
-        fetchProducts(0, 10);
+        // Sem filtros: usar paginação do servidor
+        if (isClientMode) {
+          console.log('products.tsx -> Switching back to Server Mode');
+          setIsClientMode(false);
+          fetchProducts(0, 10);
+        }
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [activeCategoryId, searchQuery, priceSort, alphaSort]);
+  }, [activeCategoryId, searchQuery, priceSort, alphaSort, isClientMode, products.length, allProducts.length]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -229,6 +300,23 @@ export default function ExploreScreen() {
         }
       }
 
+      // If requesting a large page size, we assume we want to load EVERYTHING for client-side filtering
+      const isLoadingAll = pageSize >= 100;
+      
+      // Otimização: Se já temos os dados em cache (allProducts), usamos eles em vez de buscar na rede
+      if (isLoadingAll && allProducts.length > 0) {
+        console.log('products.tsx -> Using cached products for client mode');
+        setProducts(allProducts);
+        setPage(0);
+        setIsClientMode(true);
+        setLoading(false);
+        return;
+      }
+
+      if (isLoadingAll) {
+        isFetchingAll.current = true;
+      }
+
       const result = await productService.getProductsPage(pageNumber, pageSize);
       const productsData = result.items;
       
@@ -246,12 +334,14 @@ export default function ExploreScreen() {
       setProducts(patchedProducts);
       
       // If we fetched a large page (filtering mode), we handle pagination on client side
-      if (pageSize > 10) {
+      if (isLoadingAll) {
         setPage(0);
+        setIsClientMode(true);
         // Total pages will be calculated in filterProducts or render
       } else {
         setPage(result.page);
         setTotalPages(result.totalPages);
+        setIsClientMode(false);
       }
 
       await loadCategories();
@@ -286,6 +376,7 @@ export default function ExploreScreen() {
       setProducts([]);
     } finally {
       setLoading(false);
+      isFetchingAll.current = false;
     }
   };
 
@@ -588,6 +679,10 @@ export default function ExploreScreen() {
             </View>
           ) : null
         }
+        initialNumToRender={8}
+        maxToRenderPerBatch={5}
+        windowSize={3}
+        removeClippedSubviews={true}
       />
 
       <ProductModal

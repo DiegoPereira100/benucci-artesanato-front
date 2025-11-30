@@ -20,10 +20,12 @@ export function ProductCard({ product, onPress, cardWidth }: Props) {
     return categoryLabel;
   }, [product.category, product.subcategoryName]);
 
+  const isOutOfStock = product.stock === 0;
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      style={[styles.card, { width: cardWidth }]}
+      style={[styles.card, { width: cardWidth, opacity: isOutOfStock ? 0.7 : 1 }]}
       onPress={onPress}
     >
       <LinearGradient colors={["#E3F2FD", "#E0F7FA"]} style={styles.gradient}>
@@ -37,6 +39,20 @@ export function ProductCard({ product, onPress, cardWidth }: Props) {
           ) : (
             <View style={styles.placeholder}>
               <Text style={styles.placeholderText}>🎨</Text>
+            </View>
+          )}
+          {isOutOfStock && (
+            <View style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              backgroundColor: '#FF5252',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 12,
+              zIndex: 10,
+            }}>
+              <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>ESGOTADO</Text>
             </View>
           )}
         </View>

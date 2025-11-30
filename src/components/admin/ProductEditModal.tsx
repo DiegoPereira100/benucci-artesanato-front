@@ -38,7 +38,7 @@ export default function ProductEditModal({ visible, product, categories, loading
         <View style={styles.content}>
           <Text style={styles.title}>Editar Produto</Text>
           {loading ? (
-            <ActivityIndicator color="#FF6B35" />
+            <ActivityIndicator color="#00BCD4" />
           ) : (
             <View>
               <Text style={styles.label}>Nome</Text>
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
   buttonsRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
   button: { padding: 12, borderRadius: 8, marginLeft: 8 },
   cancel: { backgroundColor: '#f0f0f0' },
-  confirm: { backgroundColor: '#FF6B35' },
+  confirm: { backgroundColor: '#00BCD4' },
   cancelText: { color: '#666', fontWeight: '600' },
   confirmText: { color: '#fff', fontWeight: '700' },
 });

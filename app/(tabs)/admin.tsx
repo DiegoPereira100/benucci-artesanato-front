@@ -32,7 +32,7 @@ export default function AdminTabWrapper() {
   if (isLoading || !hasCheckedAuth) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color="#00BCD4" />
       </View>
     );
   }

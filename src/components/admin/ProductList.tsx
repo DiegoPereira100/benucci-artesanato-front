@@ -66,11 +66,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   smallButtonText: {
-    color: '#FF6B35',
+    color: '#00BCD4',
     fontWeight: '700',
   },
   deleteButton: {
-    backgroundColor: '#f44336',
-    borderColor: '#f44336',
+    backgroundColor: '#00BCD4',
+    borderColor: '#00BCD4',
   },
 });

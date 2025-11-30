@@ -492,7 +492,7 @@ export default function AdminDashboard() {
 				value: orders.length,
 				meta: orders.length ? 'Dados atualizados' : 'Busque pelo ID do cliente',
 				icon: 'receipt-outline' as const,
-				tint: '#00bbd45d',
+				tint: '#00bbd45d ',
 			},
 		];
 
@@ -1400,7 +1400,7 @@ export default function AdminDashboard() {
 		},
 		rowActions: {
 			flexDirection: 'row',
-			gap: 10,
+			gap: 6,
 			justifyContent: 'flex-end',
 			flexWrap: 'wrap',
 		},
@@ -1408,21 +1408,21 @@ export default function AdminDashboard() {
 			flexDirection: 'row',
 			alignItems: 'center',
 			justifyContent: 'center',
-			paddingHorizontal: 12,
-			paddingVertical: 8,
-			borderRadius: 999,
-			gap: 6,
-			minWidth: 96,
+			paddingHorizontal: 8,
+			paddingVertical: 6,
+			borderRadius: 8,
+			gap: 4,
+			minWidth: 70,
 		},
 		rowActionPrimary: {
 			backgroundColor: palette.info,
 		},
 		rowActionDanger: {
-			backgroundColor: palette.danger,
+			backgroundColor: '#00BCD4',
 		},
 		rowActionText: {
 			color: '#FFFFFF',
-			fontSize: 12,
+			fontSize: 11,
 			fontWeight: '600',
 		},
 		rowActionDisabled: {
@@ -1584,7 +1584,7 @@ export default function AdminDashboard() {
 			backgroundColor: palette.info,
 		},
 		detailButtonDanger: {
-			backgroundColor: palette.danger,
+			backgroundColor: '#00BCD4',
 		},
 		detailButtonText: {
 			color: '#fff',
