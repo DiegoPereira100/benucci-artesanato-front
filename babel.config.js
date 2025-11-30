@@ -12,7 +12,7 @@ module.exports = function (api) {
           allowUndefined: true,
         },
       ],
-      ['@babel/plugin-transform-private-methods', { loose: true }],
+      //['@babel/plugin-transform-private-methods'],
       '@babel/plugin-transform-export-namespace-from',
       'react-native-reanimated/plugin',
     ],
