@@ -92,6 +92,7 @@ export default function ExploreScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isClientMode, setIsClientMode] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const isFetchingAll = React.useRef(false);
 
   // Otimização: Pré-carregar todos os produtos em segundo plano para tornar os filtros instantâneos
@@ -520,8 +521,11 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+      <View style={[
+        styles.searchContainer,
+        isSearchFocused && { borderColor: '#00BCD4', backgroundColor: '#FFFFFF' }
+      ]}>
+        <Ionicons name="search" size={20} color={isSearchFocused ? "#00BCD4" : "#999"} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Procure aqui"
@@ -530,10 +534,11 @@ export default function ExploreScreen() {
           onChangeText={setSearchQuery}
           autoCorrect={false}
           autoCapitalize="none"
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
+          cursorColor="#00BCD4"
+          selectionColor="#00BCD4"
         />
-        <TouchableOpacity style={styles.filterBtn}>
-          <Ionicons name="options-outline" size={20} color="#666" />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.sortRow}>
@@ -788,6 +793,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   searchIcon: {
     marginRight: 12,

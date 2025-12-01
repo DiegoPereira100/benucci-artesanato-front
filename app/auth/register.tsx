@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { AddressParts, sanitizeAddressParts, serializeAddress, formatZipCode } from '../../src/utils/address';
 import { RegisterRequest } from '@/types/auth';
 
@@ -225,181 +226,137 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.card}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Nome Completo</Text>
-              <Controller
-                control={control}
-                name="name"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      errors.name && styles.inputError,
-                    ]}
-                    placeholder="João Silva"
-                    autoCapitalize="words"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {errors.name && (
-                <Text style={styles.errorText}>{errors.name.message}</Text>
+            <Controller
+              control={control}
+              name="name"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Nome Completo"
+                  placeholder="João Silva"
+                  autoCapitalize="words"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isLoading}
+                  error={errors.name?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>CPF</Text>
-              <Controller
-                control={control}
-                name="cpf"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      errors.cpf && styles.inputError,
-                    ]}
-                    placeholder="123.456.789-00"
-                    keyboardType="numeric"
-                    onBlur={onBlur}
-                    onChangeText={(text) => {
-                      const cleaned = text.replace(/\D/g, '');
-                      onChange(cleaned);
-                      setValue('cpf', cleaned);
-                    }}
-                    value={formatCPF(value || '')}
-                    editable={!isLoading}
-                    maxLength={14}
-                  />
-                )}
-              />
-              {errors.cpf && (
-                <Text style={styles.errorText}>{errors.cpf.message}</Text>
+            <Controller
+              control={control}
+              name="cpf"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="CPF"
+                  placeholder="123.456.789-00"
+                  keyboardType="numeric"
+                  onBlur={onBlur}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/\D/g, '');
+                    onChange(cleaned);
+                    setValue('cpf', cleaned);
+                  }}
+                  value={formatCPF(value || '')}
+                  editable={!isLoading}
+                  maxLength={14}
+                  error={errors.cpf?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      errors.email && styles.inputError,
-                    ]}
-                    placeholder="seu@email.com"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {errors.email && (
-                <Text style={styles.errorText}>{errors.email.message}</Text>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Email"
+                  placeholder="seu@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isLoading}
+                  error={errors.email?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Telefone</Text>
-              <Controller
-                control={control}
-                name="phoneNumber"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      errors.phoneNumber && styles.inputError,
-                    ]}
-                    placeholder="(11) 99999-9999"
-                    keyboardType="phone-pad"
-                    onBlur={onBlur}
-                    onChangeText={(text) => {
-                      const cleaned = text.replace(/\D/g, '');
-                      onChange(cleaned);
-                      setValue('phoneNumber', cleaned);
-                    }}
-                    value={formatPhone(value || '')}
-                    editable={!isLoading}
-                    maxLength={15}
-                  />
-                )}
-              />
-              {errors.phoneNumber && (
-                <Text style={styles.errorText}>{errors.phoneNumber.message}</Text>
+            <Controller
+              control={control}
+              name="phoneNumber"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Telefone"
+                  placeholder="(11) 99999-9999"
+                  keyboardType="phone-pad"
+                  onBlur={onBlur}
+                  onChangeText={(text) => {
+                    const cleaned = text.replace(/\D/g, '');
+                    onChange(cleaned);
+                    setValue('phoneNumber', cleaned);
+                  }}
+                  value={formatPhone(value || '')}
+                  editable={!isLoading}
+                  maxLength={15}
+                  error={errors.phoneNumber?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
             <Text style={styles.groupLabel}>Endereço</Text>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Rua</Text>
-              <Controller
-                control={control}
-                name="address.street"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.street && styles.inputError,
-                    ]}
-                    placeholder="Rua Exemplo"
-                    autoCapitalize="words"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {addressErrors?.street?.message && (
-                <Text style={styles.errorText}>{addressErrors.street.message}</Text>
+            <Controller
+              control={control}
+              name="address.street"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Rua"
+                  placeholder="Rua Exemplo"
+                  autoCapitalize="words"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value || ''}
+                  editable={!isLoading}
+                  error={addressErrors?.street?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
             <View style={styles.rowContainer}>
-              <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.label}>Número</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Controller
                   control={control}
                   name="address.number"
                   render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        addressErrors?.number && styles.inputError,
-                      ]}
+                    <Input
+                      label="Número"
                       placeholder="123"
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value || ''}
                       editable={!isLoading}
+                      error={addressErrors?.number?.message}
+                      containerStyle={styles.inputContainer}
                     />
                   )}
                 />
-                {addressErrors?.number?.message && (
-                  <Text style={styles.errorText}>{addressErrors.number.message}</Text>
-                )}
               </View>
 
-              <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.label}>CEP</Text>
+              <View style={{ flex: 1, marginLeft: 8 }}>
                 <Controller
                   control={control}
                   name="address.zipCode"
                   render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        addressErrors?.zipCode && styles.inputError,
-                      ]}
+                    <Input
+                      label="CEP"
                       placeholder="00000-000"
                       keyboardType="numeric"
                       maxLength={9}
@@ -407,102 +364,78 @@ export default function RegisterScreen() {
                       onChangeText={(text) => onChange(text.replace(/\D/g, '').slice(0, 8))}
                       value={formatZipCode(value || '')}
                       editable={!isLoading}
+                      error={addressErrors?.zipCode?.message}
+                      containerStyle={styles.inputContainer}
                     />
                   )}
                 />
-                {addressErrors?.zipCode?.message && (
-                  <Text style={styles.errorText}>{addressErrors.zipCode.message}</Text>
-                )}
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Complemento</Text>
-              <Controller
-                control={control}
-                name="address.complement"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.complement && styles.inputError,
-                    ]}
-                    placeholder="Apartamento, bloco, etc."
-                    autoCapitalize="sentences"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {addressErrors?.complement?.message && (
-                <Text style={styles.errorText}>{addressErrors.complement.message}</Text>
+            <Controller
+              control={control}
+              name="address.complement"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Complemento"
+                  placeholder="Apartamento, bloco, etc."
+                  autoCapitalize="sentences"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value || ''}
+                  editable={!isLoading}
+                  error={addressErrors?.complement?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Bairro</Text>
-              <Controller
-                control={control}
-                name="address.neighborhood"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      addressErrors?.neighborhood && styles.inputError,
-                    ]}
-                    placeholder="Centro"
-                    autoCapitalize="words"
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value || ''}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {addressErrors?.neighborhood?.message && (
-                <Text style={styles.errorText}>{addressErrors.neighborhood.message}</Text>
+            <Controller
+              control={control}
+              name="address.neighborhood"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Bairro"
+                  placeholder="Centro"
+                  autoCapitalize="words"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value || ''}
+                  editable={!isLoading}
+                  error={addressErrors?.neighborhood?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
             <View style={styles.rowContainer}>
-              <View style={[styles.inputContainer, { flex: 2, marginRight: 8 }]}>
-                <Text style={styles.label}>Cidade</Text>
+              <View style={{ flex: 2, marginRight: 8 }}>
                 <Controller
                   control={control}
                   name="address.city"
                   render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        addressErrors?.city && styles.inputError,
-                      ]}
+                    <Input
+                      label="Cidade"
                       placeholder="São Paulo"
                       autoCapitalize="words"
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value || ''}
                       editable={!isLoading}
+                      error={addressErrors?.city?.message}
+                      containerStyle={styles.inputContainer}
                     />
                   )}
                 />
-                {addressErrors?.city?.message && (
-                  <Text style={styles.errorText}>{addressErrors.city.message}</Text>
-                )}
               </View>
 
-              <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.label}>UF</Text>
+              <View style={{ flex: 1, marginLeft: 8 }}>
                 <Controller
                   control={control}
                   name="address.state"
                   render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[
-                        styles.input,
-                        addressErrors?.state && styles.inputError,
-                      ]}
+                    <Input
+                      label="UF"
                       placeholder="SP"
                       autoCapitalize="characters"
                       maxLength={2}
@@ -510,64 +443,49 @@ export default function RegisterScreen() {
                       onChangeText={(text) => onChange(text.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2))}
                       value={(value || '').toUpperCase()}
                       editable={!isLoading}
+                      error={addressErrors?.state?.message}
+                      containerStyle={styles.inputContainer}
                     />
                   )}
                 />
-                {addressErrors?.state?.message && (
-                  <Text style={styles.errorText}>{addressErrors.state.message}</Text>
-                )}
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Senha</Text>
-              <Controller
-                control={control}
-                name="password"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      errors.password && styles.inputError,
-                    ]}
-                    placeholder="Digite sua senha"
-                    secureTextEntry
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {errors.password && (
-                <Text style={styles.errorText}>{errors.password.message}</Text>
+            <Controller
+              control={control}
+              name="password"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Senha"
+                  placeholder="Digite sua senha"
+                  secureTextEntry
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isLoading}
+                  error={errors.password?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Confirmar Senha</Text>
-              <Controller
-                control={control}
-                name="confirmPassword"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      errors.confirmPassword && styles.inputError,
-                    ]}
-                    placeholder="Digite a senha novamente"
-                    secureTextEntry
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {errors.confirmPassword && (
-                <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>
+            <Controller
+              control={control}
+              name="confirmPassword"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Confirmar Senha"
+                  placeholder="Digite a senha novamente"
+                  secureTextEntry
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isLoading}
+                  error={errors.confirmPassword?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
             <Button
               title="Cadastrar"

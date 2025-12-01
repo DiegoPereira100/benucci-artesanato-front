@@ -95,17 +95,48 @@ const hydrateUserIds = async (users: User[]): Promise<User[]> => {
     });
   }
 
+  // Fallback: Probe IDs sequentially to find missing users
+  // This is necessary because the backend UserDTO does not include the ID field,
+  // so we must infer it from the URL /users/{id}.
+  // We suppress 404 errors to avoid console spam.
   let candidate = 1;
-  while (pending.size > 0 && candidate <= MAX_USER_ID_PROBE) {
-    if (!probedUserIds.has(candidate)) {
-      const fetched = await fetchUserSkeleton(candidate);
-      if (fetched?.email) {
-        const normalized = normalizeEmail(fetched.email);
-        cacheUserId(fetched.email, fetched.id);
-        pending.delete(normalized);
+  const foundEmails = new Set<string>();
+  const MAX_PROBE = 200; // Limit probing to avoid excessive requests
+
+  // Create batches of requests
+  while (candidate <= MAX_PROBE && foundEmails.size < pending.size) {
+    const batchSize = 10;
+    const promises = [];
+    
+    for (let i = 0; i < batchSize; i++) {
+      const idToProbe = candidate + i;
+      if (idToProbe > MAX_PROBE) break;
+      
+      if (!probedUserIds.has(idToProbe)) {
+        promises.push(
+          ApiService.instance.get(`/users/${idToProbe}`)
+            .then((res) => {
+              probedUserIds.add(idToProbe);
+              const u = normalizeUser(res.data);
+              // Explicitly cache the ID we just probed
+              if (u.email) {
+                cacheUserId(u.email, idToProbe);
+                foundEmails.add(normalizeEmail(u.email));
+              }
+            })
+            .catch((err) => {
+              probedUserIds.add(idToProbe);
+              // Suppress 404s
+              if (err?.response?.status !== 404) {
+                console.warn(`Probe failed for ID ${idToProbe}`, err);
+              }
+            })
+        );
       }
     }
-    candidate++;
+
+    await Promise.all(promises);
+    candidate += batchSize;
   }
 
   return users.map((user) => {
@@ -122,19 +153,15 @@ const resolveUserIdByEmail = async (email: string): Promise<number | null> => {
     return emailIdCache.get(normalized)!;
   }
 
-  let candidate = 1;
-  while (candidate <= MAX_USER_ID_PROBE) {
-    if (!probedUserIds.has(candidate)) {
-      const fetched = await fetchUserSkeleton(candidate);
-      if (fetched?.email) {
-        const remoteEmail = normalizeEmail(fetched.email);
-        cacheUserId(fetched.email, fetched.id);
-        if (remoteEmail === normalized) {
-          return emailIdCache.get(normalized) ?? fetched.id ?? candidate;
-        }
-      }
+  try {
+    const encoded = encodeURIComponent(normalized);
+    const res = await ApiService.instance.get(`/users/email/${encoded}`);
+    const user = normalizeUser(res.data);
+    if (user.id && user.id > 0) {
+      return user.id;
     }
-    candidate++;
+  } catch (error) {
+    // Ignore error
   }
 
   return emailIdCache.get(normalized) ?? null;

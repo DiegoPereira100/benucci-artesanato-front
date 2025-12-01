@@ -8,12 +8,16 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
+  KeyboardAvoidingView,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import { Input } from '@/components/ui/Input';
 import toast from '../../../src/utils/toast';
 import {
   categoryService,
@@ -23,16 +27,20 @@ import {
 } from '@/services/categoryService';
 
 const palette = {
-  background: '#F4F6FB',
+  background: '#F8FAFC', // Slate 50
   surface: '#FFFFFF',
-  border: '#E4E9F2',
-  primary: '#00BCD4',
-  primaryDark: '#0397A8',
+  border: '#E2E8F0', // Slate 200
+  primary: '#00BCD4', // Cyan 500
+  primaryDark: '#0891B2', // Cyan 600
+  primaryForeground: '#FFFFFF',
+  secondary: '#F1F5F9', // Slate 100
+  secondaryForeground: '#0F172A',
   accent: '#00BCD4',
-  text: '#0F172A',
-  softText: '#475569',
-  muted: '#94A3B8',
-  danger: '#DC2626',
+  text: '#0F172A', // Slate 900
+  softText: '#64748B', // Slate 500
+  muted: '#94A3B8', // Slate 400
+  danger: '#EF4444', // Red 500
+  success: '#10B981', // Emerald 500
 };
 
 type ManagementTab = 'categories' | 'subcategories' | 'themes' | 'assignments';
@@ -52,7 +60,7 @@ const tabs: { key: ManagementTab; label: string; icon: keyof typeof Ionicons.gly
   { key: 'categories', label: 'Categorias', icon: 'albums-outline' },
   { key: 'subcategories', label: 'Subcategorias', icon: 'git-branch-outline' },
   { key: 'themes', label: 'Temas', icon: 'color-palette-outline' },
-  { key: 'assignments', label: 'Vinculações', icon: 'link-outline' },
+  { key: 'assignments', label: 'Vínculos', icon: 'link-outline' },
 ];
 
 const sortByName = <T extends { name?: string | null }>(a: T, b: T) =>
@@ -60,6 +68,7 @@ const sortByName = <T extends { name?: string | null }>(a: T, b: T) =>
 
 export default function CategoryManagementScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, isLoading: authLoading } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ManagementTab>('categories');
@@ -370,7 +379,9 @@ export default function CategoryManagementScreen() {
 
   const renderEmptyState = (message: string) => (
     <View style={styles.emptyState}>
-      <Ionicons name="cube-outline" size={32} color={palette.muted} />
+      <View style={styles.emptyIconContainer}>
+        <Ionicons name="cube-outline" size={32} color={palette.muted} />
+      </View>
       <Text style={styles.emptyText}>{message}</Text>
     </View>
   );
@@ -378,54 +389,66 @@ export default function CategoryManagementScreen() {
   const renderCategoryTab = () => (
     <View style={styles.sectionCard}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Categorias</Text>
-        <Text style={styles.sectionSubtitle}>Organize as macro áreas dos produtos.</Text>
-      </View>
-      <View style={styles.sectionActionRow}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="albums-outline" size={20} color={palette.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Categorias</Text>
+          <Text style={styles.sectionSubtitle}>Organize as macro áreas dos produtos.</Text>
+        </View>
         <TouchableOpacity
-          style={[styles.primaryButton, styles.actionButtonFull]}
-          onPress={() => openModal({ type: 'category', mode: 'create' })}
-        >
-          <Ionicons name="add" size={18} color="#fff" style={styles.buttonIcon} />
-          <Text style={styles.primaryButtonText}>Nova categoria</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.secondaryButton, styles.actionButtonFull, categoriesLoading && styles.disabledButton]}
+          style={styles.iconButton}
           disabled={categoriesLoading}
           onPress={loadCategories}
         >
           {categoriesLoading ? (
-            <ActivityIndicator color={palette.text} style={styles.buttonIcon} />
+            <ActivityIndicator size="small" color={palette.text} />
           ) : (
-            <Ionicons name="refresh-outline" size={16} color={palette.text} style={styles.buttonIcon} />
+            <Ionicons name="refresh-outline" size={20} color={palette.text} />
           )}
-          <Text style={styles.secondaryButtonText}>Atualizar lista</Text>
         </TouchableOpacity>
       </View>
-      {categoriesLoading ? (
-        <ActivityIndicator color={palette.primary} />
-      ) : sortedCategories.length ? (
-        sortedCategories.map((category) => (
-          <View key={category.id} style={styles.entityRow}>
-            <View style={styles.entityInfo}>
-              <Text style={styles.entityName}>{category.name}</Text>
-              {category.description ? (
-                <Text style={styles.entityDescription}>{category.description}</Text>
-              ) : null}
+
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={() => openModal({ type: 'category', mode: 'create' })}
+      >
+        <Ionicons name="add" size={20} color={palette.primaryForeground} />
+        <Text style={styles.primaryButtonText}>Nova categoria</Text>
+      </TouchableOpacity>
+
+      <View style={styles.listContainer}>
+        {categoriesLoading ? (
+          <ActivityIndicator color={palette.primary} style={{ marginTop: 20 }} />
+        ) : sortedCategories.length ? (
+          sortedCategories.map((category) => (
+            <View key={category.id} style={styles.entityRow}>
+              <View style={styles.entityInfo}>
+                <Text style={styles.entityName}>{category.name}</Text>
+                {category.description ? (
+                  <Text style={styles.entityDescription}>{category.description}</Text>
+                ) : null}
+              </View>
+              <View style={styles.rowActions}>
+                <TouchableOpacity 
+                  style={styles.actionIcon}
+                  onPress={() => openModal({ type: 'category', mode: 'edit', entity: category })}
+                >
+                  <Ionicons name="create-outline" size={20} color={palette.softText} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.actionIcon, styles.actionIconDanger]}
+                  onPress={() => handleDelete({ type: 'category', entity: category })}
+                >
+                  <Ionicons name="trash-outline" size={20} color={palette.danger} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.rowActions}>
-              <TouchableOpacity onPress={() => openModal({ type: 'category', mode: 'edit', entity: category })}>
-                <Ionicons name="create-outline" size={20} color={palette.softText} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete({ type: 'category', entity: category })}>
-                <Ionicons name="trash-outline" size={20} color={palette.danger} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))
-      ) : (
-        renderEmptyState('Nenhuma categoria cadastrada ainda.')
-      )}
+          ))
+        ) : (
+          renderEmptyState('Nenhuma categoria cadastrada ainda.')
+        )}
+      </View>
     </View>
   );
 
@@ -463,77 +486,83 @@ export default function CategoryManagementScreen() {
     return (
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Subcategorias</Text>
-          <Text style={styles.sectionSubtitle}>Especifique linhas dentro de cada categoria.</Text>
-        </View>
-        <View style={styles.sectionActionRow}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="git-branch-outline" size={20} color={palette.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Subcategorias</Text>
+            <Text style={styles.sectionSubtitle}>Especifique linhas dentro de cada categoria.</Text>
+          </View>
           <TouchableOpacity
-            style={[styles.primaryButton, styles.actionButtonFull, (!currentCategoryId || !sortedCategories.length) && styles.disabledButton]}
-            disabled={!currentCategoryId || !sortedCategories.length}
-            onPress={() =>
-              currentCategoryId &&
-              openModal({ type: 'subcategory', mode: 'create', categoryId: currentCategoryId })
-            }
+            style={styles.iconButton}
+            onPress={() => currentCategoryId && ensureSubcategories(currentCategoryId, true)}
+            disabled={!currentCategoryId}
           >
-            <Ionicons name="add" size={18} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.primaryButtonText}>Nova subcategoria</Text>
+             <Ionicons name="refresh-outline" size={20} color={palette.text} />
           </TouchableOpacity>
         </View>
 
         {sortedCategories.length ? (
-          <>
-            {renderCategoryFilter(currentCategoryId, (id) => setSubCategoryFilterId(id), 'Categoria')} 
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={() => currentCategoryId && ensureSubcategories(currentCategoryId, true)}
-            >
-              <Ionicons name="refresh-outline" size={16} color={palette.softText} />
-              <Text style={styles.refreshButtonText}>Atualizar lista</Text>
-            </TouchableOpacity>
-          </>
+          renderCategoryFilter(currentCategoryId, (id) => setSubCategoryFilterId(id), 'Filtrar por Categoria')
         ) : null}
 
-        {!currentCategoryId ? (
-          renderEmptyState('Cadastre ao menos uma categoria para seguir.')
-        ) : isLoading ? (
-          <ActivityIndicator color={palette.primary} />
-        ) : currentItems.length ? (
-          currentItems.map((subcategory) => (
-            <View key={subcategory.id} style={styles.entityRow}>
-              <View style={styles.entityInfo}>
-                <Text style={styles.entityName}>{subcategory.name}</Text>
-                {subcategory.description ? (
-                  <Text style={styles.entityDescription}>{subcategory.description}</Text>
-                ) : null}
+        <TouchableOpacity
+          style={[styles.primaryButton, (!currentCategoryId || !sortedCategories.length) && styles.disabledButton]}
+          disabled={!currentCategoryId || !sortedCategories.length}
+          onPress={() =>
+            currentCategoryId &&
+            openModal({ type: 'subcategory', mode: 'create', categoryId: currentCategoryId })
+          }
+        >
+          <Ionicons name="add" size={20} color={palette.primaryForeground} />
+          <Text style={styles.primaryButtonText}>Nova subcategoria</Text>
+        </TouchableOpacity>
+
+        <View style={styles.listContainer}>
+          {!currentCategoryId ? (
+            renderEmptyState('Cadastre ao menos uma categoria para seguir.')
+          ) : isLoading ? (
+            <ActivityIndicator color={palette.primary} style={{ marginTop: 20 }} />
+          ) : currentItems.length ? (
+            currentItems.map((subcategory) => (
+              <View key={subcategory.id} style={styles.entityRow}>
+                <View style={styles.entityInfo}>
+                  <Text style={styles.entityName}>{subcategory.name}</Text>
+                  {subcategory.description ? (
+                    <Text style={styles.entityDescription}>{subcategory.description}</Text>
+                  ) : null}
+                </View>
+                <View style={styles.rowActions}>
+                  <TouchableOpacity
+                    style={styles.actionIcon}
+                    onPress={() =>
+                      currentCategoryId &&
+                      openModal({
+                        type: 'subcategory',
+                        mode: 'edit',
+                        categoryId: currentCategoryId,
+                        entity: subcategory,
+                      })
+                    }
+                  >
+                    <Ionicons name="create-outline" size={20} color={palette.softText} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionIcon, styles.actionIconDanger]}
+                    onPress={() =>
+                      currentCategoryId &&
+                      handleDelete({ type: 'subcategory', categoryId: currentCategoryId, entity: subcategory })
+                    }
+                  >
+                    <Ionicons name="trash-outline" size={20} color={palette.danger} />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.rowActions}>
-                <TouchableOpacity
-                  onPress={() =>
-                    currentCategoryId &&
-                    openModal({
-                      type: 'subcategory',
-                      mode: 'edit',
-                      categoryId: currentCategoryId,
-                      entity: subcategory,
-                    })
-                  }
-                >
-                  <Ionicons name="create-outline" size={20} color={palette.softText} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() =>
-                    currentCategoryId &&
-                    handleDelete({ type: 'subcategory', categoryId: currentCategoryId, entity: subcategory })
-                  }
-                >
-                  <Ionicons name="trash-outline" size={20} color={palette.danger} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        ) : (
-          renderEmptyState('Nenhuma subcategoria para esta categoria.')
-        )}
+            ))
+          ) : (
+            renderEmptyState('Nenhuma subcategoria para esta categoria.')
+          )}
+        </View>
       </View>
     );
   };
@@ -541,41 +570,53 @@ export default function CategoryManagementScreen() {
   const renderThemesTab = () => (
     <View style={styles.sectionCard}>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Temas</Text>
-        <Text style={styles.sectionSubtitle}>Crie variações temáticas reutilizáveis.</Text>
-      </View>
-      <View style={styles.sectionActionRow}>
-        <TouchableOpacity
-          style={[styles.primaryButton, styles.actionButtonFull]}
-          onPress={() => openModal({ type: 'theme', mode: 'create' })}
-        >
-          <Ionicons name="add" size={18} color="#fff" style={styles.buttonIcon} />
-          <Text style={styles.primaryButtonText}>Novo tema</Text>
-        </TouchableOpacity>
+        <View style={styles.iconContainer}>
+          <Ionicons name="color-palette-outline" size={20} color={palette.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Temas</Text>
+          <Text style={styles.sectionSubtitle}>Crie variações temáticas reutilizáveis.</Text>
+        </View>
       </View>
 
-      {themesLoading ? (
-        <ActivityIndicator color={palette.primary} />
-      ) : sortedThemes.length ? (
-        sortedThemes.map((theme) => (
-          <View key={theme.id} style={styles.entityRow}>
-            <View style={styles.entityInfo}>
-              <Text style={styles.entityName}>{theme.name}</Text>
-              {theme.description ? <Text style={styles.entityDescription}>{theme.description}</Text> : null}
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={() => openModal({ type: 'theme', mode: 'create' })}
+      >
+        <Ionicons name="add" size={20} color={palette.primaryForeground} />
+        <Text style={styles.primaryButtonText}>Novo tema</Text>
+      </TouchableOpacity>
+
+      <View style={styles.listContainer}>
+        {themesLoading ? (
+          <ActivityIndicator color={palette.primary} style={{ marginTop: 20 }} />
+        ) : sortedThemes.length ? (
+          sortedThemes.map((theme) => (
+            <View key={theme.id} style={styles.entityRow}>
+              <View style={styles.entityInfo}>
+                <Text style={styles.entityName}>{theme.name}</Text>
+                {theme.description ? <Text style={styles.entityDescription}>{theme.description}</Text> : null}
+              </View>
+              <View style={styles.rowActions}>
+                <TouchableOpacity 
+                  style={styles.actionIcon}
+                  onPress={() => openModal({ type: 'theme', mode: 'edit', entity: theme })}
+                >
+                  <Ionicons name="create-outline" size={20} color={palette.softText} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.actionIcon, styles.actionIconDanger]}
+                  onPress={() => handleDelete({ type: 'theme', entity: theme })}
+                >
+                  <Ionicons name="trash-outline" size={20} color={palette.danger} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.rowActions}>
-              <TouchableOpacity onPress={() => openModal({ type: 'theme', mode: 'edit', entity: theme })}>
-                <Ionicons name="create-outline" size={20} color={palette.softText} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete({ type: 'theme', entity: theme })}>
-                <Ionicons name="trash-outline" size={20} color={palette.danger} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))
-      ) : (
-        renderEmptyState('Nenhum tema cadastrado ainda.')
-      )}
+          ))
+        ) : (
+          renderEmptyState('Nenhum tema cadastrado ainda.')
+        )}
+      </View>
     </View>
   );
 
@@ -587,33 +628,35 @@ export default function CategoryManagementScreen() {
     return (
       <View style={styles.sectionCard}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Vincular temas</Text>
-          <Text style={styles.sectionSubtitle}>Associe temas às subcategorias para controlar o catálogo.</Text>
-        </View>
-        <View style={styles.sectionActionRow}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="link-outline" size={20} color={palette.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Vincular temas</Text>
+            <Text style={styles.sectionSubtitle}>Associe temas às subcategorias.</Text>
+          </View>
           <TouchableOpacity
-            style={[
-              styles.secondaryButton,
-              styles.actionButtonFull,
-              (!assignmentSubcategoryId || assignmentFetching) && styles.disabledButton,
-            ]}
+            style={styles.iconButton}
             disabled={!assignmentSubcategoryId || assignmentFetching}
             onPress={() => assignmentSubcategoryId && refreshAssignmentSelection(assignmentSubcategoryId)}
           >
-            <Ionicons name="refresh-outline" size={16} color={palette.text} style={styles.buttonIcon} />
-            <Text style={styles.secondaryButtonText}>Sincronizar</Text>
+            {assignmentFetching ? (
+              <ActivityIndicator size="small" color={palette.text} />
+            ) : (
+              <Ionicons name="sync-outline" size={20} color={palette.text} />
+            )}
           </TouchableOpacity>
         </View>
 
         {sortedCategories.length ? (
-          renderCategoryFilter(currentCategoryId, (id) => setAssignmentCategoryId(id), 'Categoria')
+          renderCategoryFilter(currentCategoryId, (id) => setAssignmentCategoryId(id), '1. Selecione a Categoria')
         ) : (
           renderEmptyState('Cadastre uma categoria para começar.')
         )}
 
         {currentCategoryId && (
-          <>
-            <Text style={styles.filterLabel}>Subcategoria</Text>
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.filterLabel}>2. Selecione a Subcategoria</Text>
             {subcategoryLoading ? (
               <ActivityIndicator color={palette.primary} style={{ marginVertical: 16 }} />
             ) : currentSubcategories.length ? (
@@ -630,7 +673,7 @@ export default function CategoryManagementScreen() {
                         {sub.name}
                       </Text>
                       {sub.description ? (
-                        <Text style={[styles.subcategoryDescription, isActive && styles.subcategoryDescriptionActive]}>
+                        <Text style={[styles.subcategoryDescription, isActive && styles.subcategoryDescriptionActive]} numberOfLines={2}>
                           {sub.description}
                         </Text>
                       ) : null}
@@ -641,94 +684,106 @@ export default function CategoryManagementScreen() {
             ) : (
               renderEmptyState('Nenhuma subcategoria para esta categoria.')
             )}
-          </>
+          </View>
         )}
 
-        {assignmentSubcategoryId && !sortedThemes.length ? (
-          renderEmptyState('Cadastre temas antes de realizar vinculações.')
-        ) : assignmentSubcategoryId ? (
-          <View style={styles.themeGrid}>
-            {sortedThemes.map((theme) => {
-              const isSelected = assignmentSelections.includes(theme.id);
-              return (
-                <TouchableOpacity
-                  key={`theme-pill-${theme.id}`}
-                  style={[styles.themePill, isSelected && styles.themePillSelected]}
-                  onPress={() => toggleAssignmentTheme(theme.id)}
-                >
-                  <Ionicons
-                    name={isSelected ? 'checkbox-outline' : 'square-outline'}
-                    size={18}
-                    color={isSelected ? '#fff' : palette.softText}
-                  />
-                  <View style={styles.themeTextWrapper}>
-                    <Text style={[styles.themeName, isSelected && styles.themeNameSelected]}>{theme.name}</Text>
-                    {theme.description ? (
-                      <Text style={[styles.themeDescription, isSelected && styles.themeDescriptionSelected]}>
-                        {theme.description}
-                      </Text>
-                    ) : null}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ) : null}
-
-        {assignmentSubcategoryId ? (
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              (assignmentSaving || assignmentFetching) && styles.disabledButton,
-            ]}
-            onPress={handleSaveAssignments}
-            disabled={assignmentSaving || assignmentFetching}
-          >
-            {assignmentSaving || assignmentFetching ? (
-              <ActivityIndicator color="#fff" />
+        {assignmentSubcategoryId && (
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.filterLabel}>3. Selecione os Temas</Text>
+            {!sortedThemes.length ? (
+              renderEmptyState('Cadastre temas antes de realizar vinculações.')
             ) : (
-              <Ionicons name="save-outline" size={18} color="#fff" />
+              <View style={styles.themeGrid}>
+                {sortedThemes.map((theme) => {
+                  const isSelected = assignmentSelections.includes(theme.id);
+                  return (
+                    <TouchableOpacity
+                      key={`theme-pill-${theme.id}`}
+                      style={[styles.themePill, isSelected && styles.themePillSelected]}
+                      onPress={() => toggleAssignmentTheme(theme.id)}
+                    >
+                      <Ionicons
+                        name={isSelected ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={isSelected ? palette.primary : palette.muted}
+                      />
+                      <View style={styles.themeTextWrapper}>
+                        <Text style={[styles.themeName, isSelected && styles.themeNameSelected]}>{theme.name}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
-            <Text style={styles.primaryButtonText}>Salvar vinculações</Text>
-          </TouchableOpacity>
-        ) : null}
+          </View>
+        )}
+
+        {assignmentSubcategoryId && (
+          <View style={styles.footerAction}>
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                (assignmentSaving || assignmentFetching) && styles.disabledButton,
+              ]}
+              onPress={handleSaveAssignments}
+              disabled={assignmentSaving || assignmentFetching}
+            >
+              {assignmentSaving || assignmentFetching ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Ionicons name="save-outline" size={20} color="#fff" />
+              )}
+              <Text style={styles.primaryButtonText}>Salvar vinculações</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
 
   const renderModal = () => (
-    <Modal visible={!!modalConfig} animationType="slide" transparent onRequestClose={closeModal}>
-      <View style={styles.modalOverlay}>
+    <Modal visible={!!modalConfig} animationType="fade" transparent onRequestClose={closeModal}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>
-            {modalConfig?.mode === 'edit' ? 'Editar' : 'Criar'}{' '}
-            {modalConfig?.type === 'category'
-              ? 'categoria'
-              : modalConfig?.type === 'subcategory'
-                ? 'subcategoria'
-                : 'tema'}
-          </Text>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {modalConfig?.mode === 'edit' ? 'Editar' : 'Criar'}{' '}
+              {modalConfig?.type === 'category'
+                ? 'categoria'
+                : modalConfig?.type === 'subcategory'
+                  ? 'subcategoria'
+                  : 'tema'}
+            </Text>
+            <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={palette.softText} />
+            </TouchableOpacity>
+          </View>
 
-          <Text style={styles.inputLabel}>Nome</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite o nome"
-            value={modalName}
-            onChangeText={setModalName}
-          />
+          <View style={styles.modalBody}>
+            <Input
+              label="Nome"
+              placeholder="Digite o nome"
+              value={modalName}
+              onChangeText={setModalName}
+              containerStyle={{ marginBottom: 16 }}
+            />
 
-          <Text style={styles.inputLabel}>Descrição (opcional)</Text>
-          <TextInput
-            style={[styles.input, styles.inputMultiline]}
-            placeholder="Conte um pouco sobre este item"
-            value={modalDescription}
-            onChangeText={setModalDescription}
-            multiline
-            numberOfLines={3}
-          />
+            <Input
+              label="Descrição (opcional)"
+              placeholder="Conte um pouco sobre este item"
+              value={modalDescription}
+              onChangeText={setModalDescription}
+              multiline
+              numberOfLines={3}
+              style={styles.inputMultiline}
+            />
+          </View>
 
           <View style={styles.modalActions}>
-            <TouchableOpacity style={[styles.secondaryButton, styles.modalButton]} onPress={closeModal} disabled={modalSaving}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={closeModal} disabled={modalSaving}>
               <Text style={styles.secondaryButtonText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -740,43 +795,44 @@ export default function CategoryManagementScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 
   if (authLoading) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" color={palette.accent} />
-      </SafeAreaView>
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={palette.primary} />
+      </View>
     );
   }
 
   if (!user || user.type !== 'ADMIN') {
     return (
-      <SafeAreaView style={styles.centered}>
-        <Ionicons name="lock-closed-outline" size={32} color={palette.danger} />
-        <Text style={styles.restrictedText}>Apenas administradores podem acessar esta área.</Text>
+      <View style={[styles.centered, { paddingTop: insets.top }]}>
+        <Ionicons name="lock-closed-outline" size={48} color={palette.danger} />
+        <Text style={styles.restrictedText}>Acesso restrito</Text>
+        <Text style={styles.restrictedSubText}>Apenas administradores podem acessar esta área.</Text>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}>
           <Text style={styles.secondaryButtonText}>Voltar</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Gerenciamento de categorias</Text>
-            <Text style={styles.subtitle}>
-              Controle categorias, subcategorias, temas e vinculações em um só lugar.
-            </Text>
-          </View>
-        </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={palette.background} />
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color={palette.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>Gerenciamento</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-        <View style={styles.tabsRow}>
+      <View style={styles.tabsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
           {tabs.map((tab) => {
             const isActive = tab.key === activeTab;
             return (
@@ -787,15 +843,20 @@ export default function CategoryManagementScreen() {
               >
                 <Ionicons
                   name={tab.icon}
-                  size={16}
-                  color={isActive ? palette.text : palette.muted}
+                  size={18}
+                  color={isActive ? palette.primaryForeground : palette.softText}
                 />
                 <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
+      </View>
 
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+        showsVerticalScrollIndicator={false}
+      >
         {activeTab === 'categories' && renderCategoryTab()}
         {activeTab === 'subcategories' && renderSubcategoryTab()}
         {activeTab === 'themes' && renderThemesTab()}
@@ -813,7 +874,7 @@ export default function CategoryManagementScreen() {
         onCancel={() => confirmConfig && !confirmLoading && setConfirmConfig(null)}
         loading={confirmLoading}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -822,319 +883,364 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.background,
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 48,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 15,
-    color: palette.softText,
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    backgroundColor: palette.surface,
-    borderRadius: 14,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginBottom: 20,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    gap: 1,
-  },
-  tabButtonActive: {
-    backgroundColor: '#E0F7FA',
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: palette.muted,
-  },
-  tabLabelActive: {
-    color: palette.text,
-  },
-  sectionCard: {
-    backgroundColor: palette.surface,
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: palette.text,
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: palette.softText,
-    lineHeight: 20,
-  },
-  sectionActionRow: {
-    width: '100%',
-    marginBottom: 16,
-  },
-  actionButtonFull: {
-    width: '100%',
-    justifyContent: 'center',
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-    backgroundColor: palette.primary,
-    borderRadius: 999,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 999,
-  },
-  secondaryButtonText: {
-    color: palette.text,
-    fontWeight: '600',
-  },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  entityRow: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    gap: 12,
-  },
-  entityInfo: {
-    flex: 1,
-  },
-  entityName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  entityDescription: {
-    marginTop: 4,
-    color: palette.softText,
-  },
-  rowActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 24,
-    gap: 8,
-  },
-  emptyText: {
-    color: palette.softText,
-    textAlign: 'center',
-  },
-  filterContainer: {
-    marginBottom: 12,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: palette.softText,
-    marginBottom: 8,
-  },
-  filterScroll: {
-    paddingRight: 12,
-  },
-  filterChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginRight: 8,
-  },
-  filterChipActive: {
-    backgroundColor: '#E0F7FA',
-    borderColor: palette.primary,
-  },
-  filterChipText: {
-    color: palette.softText,
-    fontWeight: '600',
-  },
-  filterChipTextActive: {
-    color: palette.text,
-  },
-  refreshButton: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginBottom: 12,
-  },
-  refreshButtonText: {
-    color: palette.softText,
-    fontWeight: '600',
-  },
-  subcategoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
-  },
-  subcategoryCard: {
-    flexBasis: '48%',
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    padding: 12,
-    minWidth: 140,
-  },
-  subcategoryCardActive: {
-    borderColor: palette.primary,
-    backgroundColor: '#E0F7FA',
-  },
-  subcategoryName: {
-    fontWeight: '600',
-    color: palette.text,
-  },
-  subcategoryNameActive: {
-    color: palette.text,
-  },
-  subcategoryDescription: {
-    marginTop: 4,
-    color: palette.softText,
-    fontSize: 12,
-  },
-  subcategoryDescriptionActive: {
-    color: palette.text,
-  },
-  themeGrid: {
-    gap: 12,
-    marginBottom: 18,
-  },
-  themePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    padding: 12,
-  },
-  themePillSelected: {
-    backgroundColor: palette.accent,
-    borderColor: palette.accent,
-  },
-  themeTextWrapper: {
-    flex: 1,
-  },
-  themeName: {
-    fontWeight: '600',
-    color: palette.text,
-  },
-  themeNameSelected: {
-    color: '#fff',
-  },
-  themeDescription: {
-    marginTop: 2,
-    color: palette.softText,
-    fontSize: 12,
-  },
-  themeDescriptionSelected: {
-    color: '#fff',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 16,
-    color: palette.text,
-  },
-  inputLabel: {
-    fontWeight: '600',
-    color: palette.softText,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-    color: palette.text,
-  },
-  inputMultiline: {
-    textAlignVertical: 'top',
-    minHeight: 90,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    marginTop: 4,
-  },
-  modalButton: {
-    minWidth: 120,
-    justifyContent: 'center',
-  },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: palette.background,
-    gap: 12,
+    gap: 16,
     padding: 20,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: palette.background,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  tabsContainer: {
+    marginBottom: 16,
+  },
+  tabsScroll: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  tabButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: palette.border,
+    gap: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  tabLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.softText,
+  },
+  tabLabelActive: {
+    color: palette.primaryForeground,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+  },
+  sectionCard: {
+    backgroundColor: palette.surface,
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#E0F7FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: palette.softText,
+  },
+  iconButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: palette.secondary,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: palette.primary,
+    borderRadius: 16,
+    gap: 8,
+    marginBottom: 20,
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    color: palette.primaryForeground,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    gap: 8,
+  },
+  secondaryButtonText: {
+    color: palette.text,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  listContainer: {
+    gap: 12,
+  },
+  entityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  entityInfo: {
+    flex: 1,
+  },
+  entityName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  entityDescription: {
+    fontSize: 13,
+    color: palette.softText,
+    marginTop: 2,
+  },
+  rowActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionIcon: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  actionIconDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: palette.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: palette.softText,
+    textAlign: 'center',
+    fontSize: 14,
+  },
+  filterContainer: {
+    marginBottom: 20,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.text,
+    marginBottom: 12,
+  },
+  filterScroll: {
+    paddingRight: 20,
+    gap: 8,
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF',
+  },
+  filterChipActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.softText,
+  },
+  filterChipTextActive: {
+    color: '#FFF',
+  },
+  subcategoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  subcategoryCard: {
+    width: '48%',
+    padding: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: palette.border,
+    minHeight: 80,
+    justifyContent: 'center',
+  },
+  subcategoryCardActive: {
+    backgroundColor: '#E0F7FA',
+    borderColor: palette.primary,
+  },
+  subcategoryName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.text,
+    marginBottom: 4,
+  },
+  subcategoryNameActive: {
+    color: palette.primaryDark,
+  },
+  subcategoryDescription: {
+    fontSize: 12,
+    color: palette.softText,
+  },
+  subcategoryDescriptionActive: {
+    color: palette.primaryDark,
+    opacity: 0.8,
+  },
+  themeGrid: {
+    gap: 10,
+  },
+  themePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  themePillSelected: {
+    backgroundColor: '#E0F7FA',
+    borderColor: palette.primary,
+  },
+  themeTextWrapper: {
+    flex: 1,
+  },
+  themeName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  themeNameSelected: {
+    color: palette.primaryDark,
+  },
+  footerAction: {
+    marginTop: 24,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    marginBottom: 24,
+  },
+  inputMultiline: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    marginBottom: 0,
+  },
   restrictedText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  restrictedSubText: {
     fontSize: 16,
     color: palette.softText,
     textAlign: 'center',

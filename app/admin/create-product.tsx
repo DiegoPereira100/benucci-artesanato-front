@@ -11,9 +11,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,19 +23,21 @@ import * as ImagePicker from 'expo-image-picker';
 import toast from '../../src/utils/toast';
 import { useAuth } from '@/hooks/useAuth';
 import { productService, categoryService, CreateProductPayload, ProductImageFile } from '@/services/productService';
+import { Input } from '@/components/ui/Input';
 import { CategoryDTO, SubcategoryDTO, ThemeDTO } from '@/services/categoryService';
 
 const palette = {
-  background: '#F4F6FB',
+  background: '#F8FAFC', // Slate 50
   surface: '#FFFFFF',
-  border: '#E4E9F2',
-  primary: '#00BCD4',
-  primaryDark: '#0397A8',
-  accent: '#0397A8',
-  text: '#0F172A',
-  softText: '#475569',
-  muted: '#94A3B8',
-  danger: '#DC2626',
+  border: '#E2E8F0', // Slate 200
+  primary: '#00BCD4', // Cyan 500
+  primaryDark: '#0891B2', // Cyan 600
+  accent: '#00BCD4',
+  text: '#0F172A', // Slate 900
+  softText: '#64748B', // Slate 500
+  muted: '#94A3B8', // Slate 400
+  danger: '#EF4444', // Red 500
+  success: '#10B981', // Emerald 500
 };
 
 const MAX_IMAGES = 6;
@@ -88,6 +92,7 @@ const sortByName = <T extends { name?: string | null }>(a: T, b: T) =>
 export default function CreateProductScreen() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [categories, setCategories] = useState<CategoryDTO[]>([]);
   const [themes, setThemes] = useState<ThemeDTO[]>([]);
@@ -583,225 +588,251 @@ export default function CreateProductScreen() {
           </Text>
         </View>
       ))}
+      {selectedImages.length < MAX_IMAGES && (
+        <TouchableOpacity 
+          style={styles.addImageButton} 
+          onPress={handlePickImages}
+          disabled={isSubmitting}
+        >
+          <Ionicons name="add" size={32} color={palette.primary} />
+          <Text style={styles.addImageText}>Adicionar</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
   if (authLoading || initialLoading) {
     return (
-      <SafeAreaView style={styles.centered}>
+      <View style={styles.centered}>
         <ActivityIndicator size="large" color={palette.accent} />
         <Text style={styles.emptyText}>Carregando dados para o cadastro...</Text>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!user || user.type !== 'ADMIN') {
     return (
-      <SafeAreaView style={styles.centered}>
+      <View style={styles.centered}>
         <Ionicons name="lock-closed-outline" size={32} color={palette.danger} />
         <Text style={styles.emptyText}>Apenas administradores podem acessar esta área.</Text>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}>
           <Text style={styles.secondaryButtonText}>Voltar</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
-
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={palette.background} />
+      <View style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()} disabled={isSubmitting}>
-              <Ionicons name="chevron-back" size={20} color={palette.accent} />
-              <Text style={styles.backButtonText}>Voltar</Text>
+              <Ionicons name="chevron-back" size={24} color={palette.text} />
             </TouchableOpacity>
-            <Text style={styles.title}>Cadastrar novo produto</Text>
-            <Text style={styles.subtitle}>Defina informações, estoque, categorias, temas e imagens em um só lugar.</Text>
+            <Text style={styles.title}>Novo Produto</Text>
+            <View style={{ width: 24 }} />
           </View>
 
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Informações básicas</Text>
-              <Text style={styles.sectionSubtitle}>Nome e descrição vistos pelos clientes.</Text>
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nome *</Text>
+          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <Text style={styles.pageDescription}>
+              Preencha os campos abaixo para adicionar um novo produto ao catálogo.
+            </Text>
+
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="information-circle-outline" size={20} color={palette.primary} />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>Informações Básicas</Text>
+                  <Text style={styles.sectionSubtitle}>Nome e descrição do produto</Text>
+                </View>
+              </View>
+              
               <Controller
                 control={control}
                 name="name"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[styles.input, errors.name && styles.inputError]}
-                    placeholder="Ex: Mandala decorativa"
+                  <Input
+                    label="Nome do Produto *"
+                    placeholder="Ex: Mandala Decorativa"
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     editable={!isSubmitting}
+                    error={errors.name?.message}
+                    containerStyle={styles.inputGroup}
                   />
                 )}
               />
-              {errors.name ? <Text style={styles.errorText}>{errors.name.message}</Text> : null}
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Descrição *</Text>
+              
               <Controller
                 control={control}
                 name="description"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[styles.input, styles.textArea, errors.description && styles.inputError]}
-                    placeholder="Compartilhe detalhes do produto, materiais e diferenciais."
+                  <Input
+                    label="Descrição Detalhada *"
+                    placeholder="Descreva os materiais, dimensões e detalhes únicos..."
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
                     editable={!isSubmitting}
                     multiline
                     numberOfLines={5}
-                    textAlignVertical="top"
+                    style={styles.textArea}
+                    error={errors.description?.message}
+                    containerStyle={styles.inputGroup}
                   />
                 )}
               />
-              {errors.description ? <Text style={styles.errorText}>{errors.description.message}</Text> : null}
             </View>
-          </View>
 
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Preço e estoque</Text>
-              <Text style={styles.sectionSubtitle}>Controle financeiro e disponibilidade.</Text>
-            </View>
-            <View style={styles.sideBySide}>
-              <View style={styles.inputGroupHalf}>
-                <Text style={styles.label}>Preço (R$) *</Text>
-                <Controller
-                  control={control}
-                  name="price"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[styles.input, errors.price && styles.inputError]}
-                      placeholder="Ex: 129.90"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      keyboardType="decimal-pad"
-                      editable={!isSubmitting}
-                    />
-                  )}
-                />
-                {errors.price ? <Text style={styles.errorText}>{errors.price.message}</Text> : null}
-              </View>
-              <View style={styles.inputGroupHalf}>
-                <Text style={styles.label}>Estoque *</Text>
-                <Controller
-                  control={control}
-                  name="stock"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <TextInput
-                      style={[styles.input, errors.stock && styles.inputError]}
-                      placeholder="Ex: 15"
-                      value={value}
-                      onChangeText={onChange}
-                      onBlur={onBlur}
-                      keyboardType="numeric"
-                      editable={!isSubmitting}
-                    />
-                  )}
-                />
-                {errors.stock ? <Text style={styles.errorText}>{errors.stock.message}</Text> : null}
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Classificação</Text>
-              <Text style={styles.sectionSubtitle}>Selecione categoria, subcategoria e temas compatíveis.</Text>
-            </View>
-            <View style={styles.sectionActionRow}>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => router.push('/admin/categories')}
-                disabled={isSubmitting}
-              >
-                <Ionicons name="albums-outline" size={16} color={palette.text} style={styles.buttonIcon} />
-                <Text style={styles.secondaryButtonText}>Gerenciar categorias</Text>
-              </TouchableOpacity>
-            </View>
-            {categories.length ? (
-              <>
-                <Text style={styles.label}>Categoria *</Text>
-                {renderCategoryChips()}
-                {classificationErrors.category ? (
-                  <Text style={styles.errorText}>{classificationErrors.category}</Text>
-                ) : null}
-
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>Subcategorias *</Text>
-                  {selectedCategoryId ? (
-                    <TouchableOpacity
-                      onPress={() => ensureSubcategories(selectedCategoryId, true)}
-                      disabled={subcategoriesLoading[selectedCategoryId]}
-                    >
-                      <Text style={styles.refreshLink}>Atualizar</Text>
-                    </TouchableOpacity>
-                  ) : null}
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="pricetag-outline" size={20} color={palette.primary} />
                 </View>
-                {renderSubcategoryGrid()}
-                {classificationErrors.subcategory ? (
-                  <Text style={styles.errorText}>{classificationErrors.subcategory}</Text>
-                ) : null}
-
-                <Text style={styles.label}>Temas disponíveis</Text>
-                {renderThemeSelector()}
-                {classificationErrors.themes ? (
-                  <Text style={styles.errorText}>{classificationErrors.themes}</Text>
-                ) : null}
-              </>
-            ) : (
-              <Text style={styles.emptyText}>Cadastre ao menos uma categoria antes de criar produtos.</Text>
-            )}
-          </View>
-
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Imagens</Text>
-              <Text style={styles.sectionSubtitle}>Adicione até {MAX_IMAGES} fotos para destacar seu produto.</Text>
+                <View>
+                  <Text style={styles.sectionTitle}>Preço e Estoque</Text>
+                  <Text style={styles.sectionSubtitle}>Defina o valor e a quantidade disponível</Text>
+                </View>
+              </View>
+              
+              <View style={styles.sideBySide}>
+                <View style={styles.inputGroupHalf}>
+                  <Controller
+                    control={control}
+                    name="price"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Input
+                        label="Preço (R$) *"
+                        placeholder="0,00"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="decimal-pad"
+                        editable={!isSubmitting}
+                        error={errors.price?.message}
+                      />
+                    )}
+                  />
+                </View>
+                <View style={styles.inputGroupHalf}>
+                  <Controller
+                    control={control}
+                    name="stock"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Input
+                        label="Estoque *"
+                        placeholder="0"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="numeric"
+                        editable={!isSubmitting}
+                        error={errors.stock?.message}
+                      />
+                    )}
+                  />
+                </View>
+              </View>
             </View>
-            <TouchableOpacity
-              style={[styles.primaryButton, styles.uploadButton]}
-              onPress={handlePickImages}
-              disabled={isSubmitting}
-            >
-              <Ionicons name="images-outline" size={18} color="#fff" style={styles.buttonIcon} />
-              <Text style={styles.primaryButtonText}>Selecionar imagens</Text>
-            </TouchableOpacity>
-            <Text style={styles.helperText}>
-              {selectedImages.length ? `${selectedImages.length}/${MAX_IMAGES} selecionadas` : 'Nenhuma imagem selecionada'}
-            </Text>
-            {renderImageGrid()}
-            {classificationErrors.images ? (
-              <Text style={styles.errorText}>{classificationErrors.images}</Text>
-            ) : null}
-          </View>
 
-          <TouchableOpacity
-            style={[styles.primaryButton, isSubmitting && styles.disabledButton]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#fff" style={styles.buttonIcon} />
-                <Text style={styles.primaryButtonText}>Cadastrar produto</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="grid-outline" size={20} color={palette.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Categorização</Text>
+                  <Text style={styles.sectionSubtitle}>Organize seu produto na loja</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.manageButton}
+                  onPress={() => router.push('/admin/categories')}
+                  disabled={isSubmitting}
+                >
+                  <Text style={styles.manageButtonText}>Gerenciar</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {categories.length ? (
+                <>
+                  <Text style={styles.label}>Categoria Principal *</Text>
+                  {renderCategoryChips()}
+                  {classificationErrors.category ? (
+                    <Text style={styles.errorText}>{classificationErrors.category}</Text>
+                  ) : null}
+
+                  <View style={styles.labelRow}>
+                    <Text style={styles.label}>Subcategoria *</Text>
+                    {selectedCategoryId ? (
+                      <TouchableOpacity
+                        onPress={() => ensureSubcategories(selectedCategoryId, true)}
+                        disabled={subcategoriesLoading[selectedCategoryId]}
+                      >
+                        <Ionicons name="refresh" size={16} color={palette.primary} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                  {renderSubcategoryGrid()}
+                  {classificationErrors.subcategory ? (
+                    <Text style={styles.errorText}>{classificationErrors.subcategory}</Text>
+                  ) : null}
+
+                  <Text style={styles.label}>Temas Relacionados</Text>
+                  {renderThemeSelector()}
+                  {classificationErrors.themes ? (
+                    <Text style={styles.errorText}>{classificationErrors.themes}</Text>
+                  ) : null}
+                </>
+              ) : (
+                <View style={styles.emptyStateBox}>
+                  <Text style={styles.emptyText}>Cadastre ao menos uma categoria antes de criar produtos.</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="images-outline" size={20} color={palette.primary} />
+                </View>
+                <View>
+                  <Text style={styles.sectionTitle}>Galeria de Imagens</Text>
+                  <Text style={styles.sectionSubtitle}>Adicione até {MAX_IMAGES} fotos ({selectedImages.length}/{MAX_IMAGES})</Text>
+                </View>
+              </View>
+              
+              {renderImageGrid()}
+              {classificationErrors.images ? (
+                <Text style={styles.errorText}>{classificationErrors.images}</Text>
+              ) : null}
+            </View>
+
+            <View style={styles.footerSpace} />
+          </ScrollView>
+          <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+            <TouchableOpacity
+              style={[styles.submitButton, isSubmitting && styles.disabledButton]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.submitButtonText}>Cadastrar Produto</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </View>
   );
 }
 
@@ -810,55 +841,89 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.background,
   },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 60,
-  },
   header: {
-    marginBottom: 20,
-  },
-  backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: palette.background,
   },
-  backButtonText: {
-    color: palette.accent,
-    fontWeight: '600',
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   title: {
-    fontSize: 26,
+    fontSize: 20,
     fontWeight: '700',
     color: palette.text,
   },
-  subtitle: {
-    marginTop: 4,
+  pageDescription: {
+    fontSize: 15,
     color: palette.softText,
-    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
   },
   sectionCard: {
     backgroundColor: palette.surface,
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 4,
   },
   sectionHeader: {
-    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#E0F7FA',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: palette.text,
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: palette.softText,
   },
+  manageButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+  },
+  manageButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.text,
+  },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   inputGroupHalf: {
     flex: 1,
@@ -868,23 +933,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: palette.text,
-    marginBottom: 6,
-  },
-  helperText: {
-    color: palette.softText,
-    fontSize: 13,
-    marginTop: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: '#FAFBFF',
-    color: palette.text,
-  },
-  inputError: {
-    borderColor: palette.danger,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   textArea: {
     minHeight: 120,
@@ -896,81 +946,49 @@ const styles = StyleSheet.create({
     color: palette.danger,
     marginTop: 6,
     fontSize: 13,
-  },
-  sectionActionRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 12,
-  },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: palette.primary,
-    borderRadius: 999,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  secondaryButtonText: {
-    color: palette.text,
-    fontWeight: '600',
-  },
-  buttonIcon: {
-    marginRight: 4,
+    marginLeft: 4,
   },
   chipScroll: {
-    paddingVertical: 6,
+    paddingVertical: 4,
+    marginBottom: 16,
   },
   chip: {
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 999,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    marginRight: 8,
+    marginRight: 10,
+    backgroundColor: '#FFF',
   },
   chipActive: {
-    backgroundColor: '#E0F7FA',
+    backgroundColor: palette.primary,
     borderColor: palette.primary,
   },
   chipLabel: {
     color: palette.softText,
     fontWeight: '600',
+    fontSize: 14,
   },
   chipLabelActive: {
-    color: palette.text,
+    color: '#FFF',
   },
   subcategoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     marginTop: 8,
+    marginBottom: 20,
   },
   subcategoryCard: {
     flexBasis: '48%',
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 12,
-    minHeight: 88,
+    minHeight: 80,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
   },
   subcategoryCardActive: {
     borderColor: palette.primary,
@@ -979,17 +997,20 @@ const styles = StyleSheet.create({
   subcategoryName: {
     fontWeight: '600',
     color: palette.text,
+    fontSize: 14,
+    marginBottom: 4,
   },
   subcategoryNameActive: {
     color: palette.primaryDark,
   },
   subcategoryDescription: {
-    marginTop: 6,
     color: palette.softText,
     fontSize: 12,
+    lineHeight: 16,
   },
   subcategoryDescriptionActive: {
-    color: palette.text,
+    color: palette.primaryDark,
+    opacity: 0.8,
   },
   themeGrid: {
     marginTop: 8,
@@ -1001,87 +1022,164 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 12,
+    backgroundColor: '#FFF',
   },
   themePillActive: {
-    backgroundColor: palette.accent,
-    borderColor: palette.accent,
+    backgroundColor: '#E0F7FA',
+    borderColor: palette.primary,
   },
   themeName: {
     color: palette.text,
     fontWeight: '600',
+    fontSize: 14,
   },
   themeNameActive: {
-    color: '#fff',
+    color: palette.primaryDark,
   },
   themeDescription: {
     color: palette.softText,
     fontSize: 12,
   },
   themeDescriptionActive: {
-    color: '#fff',
-  },
-  uploadButton: {
-    alignSelf: 'flex-start',
+    color: palette.primaryDark,
+    opacity: 0.8,
   },
   imageGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginTop: 12,
   },
   imageWrapper: {
-    width: 110,
+    width: '30%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 12,
-    padding: 8,
-    backgroundColor: '#F8FAFF',
+    position: 'relative',
   },
   imagePreview: {
     width: '100%',
-    height: 90,
-    borderRadius: 10,
-    marginBottom: 6,
-    backgroundColor: '#E2E8F0',
+    height: '100%',
   },
   imageLabel: {
-    fontSize: 11,
-    color: palette.softText,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: '#FFF',
+    fontSize: 10,
+    padding: 4,
+    textAlign: 'center',
   },
   removeBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 4,
+    right: 4,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(15,23,42,0.65)',
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  addImageButton: {
+    width: '30%',
+    aspectRatio: 1,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: palette.border,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  addImageText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.primary,
+    marginTop: 4,
+  },
+  footerSpace: {
+    height: 80,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  submitButton: {
+    backgroundColor: palette.primary,
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: palette.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.7,
+    backgroundColor: palette.muted,
+    shadowOpacity: 0,
+  },
+  emptyStateBox: {
+    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
     color: palette.softText,
     textAlign: 'center',
-    marginTop: 8,
+    fontSize: 14,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: palette.background,
-    gap: 12,
-    padding: 20,
+    gap: 16,
+  },
+  secondaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  secondaryButtonText: {
+    color: palette.text,
+    fontWeight: '600',
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-  },
-  refreshLink: {
-    color: palette.accent,
-    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 16,
   },
 });

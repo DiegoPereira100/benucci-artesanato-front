@@ -26,6 +26,17 @@ import UserEditModal from '@/components/admin/UserEditModal';
 import toast from '../../src/utils/toast';
 import { Pagination } from '@/components/ui/Pagination';
 
+function formatShortDate(dateString?: string) {
+	if (!dateString) return '-';
+	const date = new Date(dateString);
+	const day = String(date.getDate()).padStart(2, '0');
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const year = String(date.getFullYear()).slice(-2);
+	const hours = String(date.getHours()).padStart(2, '0');
+	const minutes = String(date.getMinutes()).padStart(2, '0');
+	return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
 function mapOrderStatus(status: string) {
 	switch ((status || '').toLowerCase()) {
 		case 'pending':
@@ -118,6 +129,9 @@ export default function AdminDashboard() {
 	const [totalOrdersCount, setTotalOrdersCount] = useState(0);
 
 	const [loading, setLoading] = useState(false);
+	const [productsLoading, setProductsLoading] = useState(false);
+	const [usersLoading, setUsersLoading] = useState(false);
+	const [ordersLoading, setOrdersLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	const isFocused = useIsFocused();
@@ -136,19 +150,30 @@ export default function AdminDashboard() {
 	const [userDeleteTarget, setUserDeleteTarget] = useState<User | null>(null);
 	const [userActionLoading, setUserActionLoading] = useState(false);
 	const [activeUser, setActiveUser] = useState<User | null>(null);
+	const [isSearchFocused, setIsSearchFocused] = useState(false);
 
 	const tabFadeAnim = useRef(new Animated.Value(1)).current;
 
 	const normalizeEmailValue = (value?: string | null) => (value ?? '').trim().toLowerCase();
 
 	useEffect(() => {
-		if (selectedTab === 'products') fetchProducts(0);
-		if (selectedTab === 'users') fetchUsers();
-		if (selectedTab === 'orders') fetchOrders(0, true);
+		if (selectedTab === 'products') {
+			const shouldBeSilent = products.length > 0;
+			fetchProducts(0, shouldBeSilent);
+		}
+		if (selectedTab === 'users') {
+			const shouldBeSilent = users.length > 0;
+			fetchUsers(shouldBeSilent);
+		}
+		if (selectedTab === 'orders') {
+			const shouldBeSilent = orders.length > 0 || allOrdersCache.length > 0;
+			fetchOrders(0, false, shouldBeSilent);
+		}
 	}, [selectedTab]);
 
 	useEffect(() => {
-		fetchUsers();
+		fetchUsers(true);
+		fetchOrders(0, true, true);
 	}, []);
 
 	useEffect(() => {
@@ -191,9 +216,10 @@ export default function AdminDashboard() {
 		}
 	}, [selectedTab, activeUser]);
 
-	async function fetchProducts(pageNumber: number = 0) {
+	async function fetchProducts(pageNumber: number = 0, silent: boolean = false) {
 		setError(null);
-		setLoading(true);
+		if (!silent) setLoading(true);
+		setProductsLoading(true);
 		try {
 			const res = await productService.getProductsPage(pageNumber, 10);
 			setProducts(res.items || []);
@@ -207,7 +233,8 @@ export default function AdminDashboard() {
 			setError('Erro ao buscar produtos');
 			console.error(e);
 		} finally {
-			setLoading(false);
+			if (!silent) setLoading(false);
+			setProductsLoading(false);
 		}
 	}
 
@@ -254,6 +281,8 @@ export default function AdminDashboard() {
 			setLoading(true);
 			await productService.deleteProduct(id);
 			setProducts((prev) => prev.filter((p) => p.id !== id));
+			setTotalProducts((prev) => Math.max(0, prev - 1));
+			fetchStats();
 			toast.showSuccess('Produto excluído', 'Produto removido com sucesso.');
 		} catch (e: any) {
 			console.log('Tentativa de exclusão falhou:', e);
@@ -273,9 +302,10 @@ export default function AdminDashboard() {
 		}
 	}
 
-	async function fetchUsers() {
+	async function fetchUsers(silent: boolean = false) {
 		setError(null);
-		setLoading(true);
+		if (!silent) setLoading(true);
+		setUsersLoading(true);
 		try {
 			const res = await userService.getAllUsers();
 			setUsers(res || []);
@@ -283,13 +313,15 @@ export default function AdminDashboard() {
 			setError('Erro ao buscar usuários');
 			console.error(e);
 		} finally {
-			setLoading(false);
+			if (!silent) setLoading(false);
+			setUsersLoading(false);
 		}
 	}
 
-	async function fetchOrders(pageNumber: number = 0, forceRefresh: boolean = false) {
+	async function fetchOrders(pageNumber: number = 0, forceRefresh: boolean = false, silent: boolean = false) {
 		setError(null);
-		setLoading(true);
+		if (!silent) setLoading(true);
+		setOrdersLoading(true);
 		try {
 			// Workaround: Backend does not support listing all orders.
 			// We fetch all users, then fetch orders for each user, and aggregate.
@@ -328,7 +360,8 @@ export default function AdminDashboard() {
 			setError('Erro ao buscar pedidos');
 			console.error(e);
 		} finally {
-			setLoading(false);
+			if (!silent) setLoading(false);
+			setOrdersLoading(false);
 		}
 	}
 
@@ -578,13 +611,15 @@ export default function AdminDashboard() {
 		return result;
 	}, [orders, normalizedSearch, sortColumn, sortDirection, selectedTab]);
 
-	const adminCount = users.filter((u) => (u.role ?? u.type ?? '').toString().toUpperCase() === 'ADMIN').length;
+	const adminCount = useMemo(() => {
+		return users.filter((u) => (u.role === 'ADMIN' || u.type === 'ADMIN')).length;
+	}, [users]);
 
 		const statsCards = [
 			{
 				key: 'products',
 				label: 'Produtos cadastrados',
-				value: totalProducts,
+				value: productsLoading && totalProducts === 0 ? 'loading' : totalProducts,
 				meta: lowStockCount ? `${lowStockCount} itens com estoque baixo` : 'Estoque saudável',
 				icon: 'cube-outline' as const,
 				tint: '#00bbd45d',
@@ -592,7 +627,7 @@ export default function AdminDashboard() {
 			{
 				key: 'users',
 				label: 'Usuários ativos',
-				value: users.length,
+				value: usersLoading && users.length === 0 ? 'loading' : users.length,
 				meta: adminCount ? `${adminCount} administradores` : 'Nenhum admin adicional',
 				icon: 'people-outline' as const,
 				tint: '#00bbd45d',
@@ -600,7 +635,7 @@ export default function AdminDashboard() {
 			{
 				key: 'orders',
 				label: 'Pedidos carregados',
-				value: orders.length,
+				value: ordersLoading && orders.length === 0 ? 'loading' : orders.length,
 				meta: orders.length ? 'Dados atualizados' : 'Busque pelo ID do cliente',
 				icon: 'receipt-outline' as const,
 				tint: '#00bbd45d',
@@ -684,11 +719,11 @@ export default function AdminDashboard() {
 			);
 		};
 
-		const renderTable = (columns: ColumnDefinition[], dataset: any[], emptyMessage: string) => {
+		const renderTable = (columns: ColumnDefinition[], dataset: any[], emptyMessage: string, onRowPress?: (item: any) => void) => {
 			if (loading) {
 				return (
 					<View style={styles.loadingState}>
-						<ActivityIndicator size="small" color="#2563EB" />
+						<ActivityIndicator size="small" color={palette.primary} />
 						<Text style={styles.loadingText}>Carregando dados...</Text>
 					</View>
 				);
@@ -740,8 +775,14 @@ export default function AdminDashboard() {
 
 					{dataset.map((item, index) => {
 						const rowKey = `${columns[0]?.key}-${item?.id ?? index}`;
+						const RowComponent = onRowPress ? TouchableOpacity : View;
 						return (
-							<View key={rowKey} style={styles.tableRow}>
+							<RowComponent
+								key={rowKey}
+								style={styles.tableRow}
+								onPress={() => onRowPress?.(item)}
+								activeOpacity={onRowPress ? 0.7 : 1}
+							>
 								{columns.map((column) => (
 									<View
 										key={`${rowKey}-${column.key}`}
@@ -765,7 +806,7 @@ export default function AdminDashboard() {
 										)}
 									</View>
 								))}
-							</View>
+							</RowComponent>
 						);
 					})}
 				</View>
@@ -819,41 +860,40 @@ export default function AdminDashboard() {
 				render: (item: any) => (
 					<View>
 						<Text style={styles.cellTitle}>#{item?.id ?? 'N/A'}</Text>
-						<Text style={styles.cellSubtitle}>{item?.user?.name ?? 'Cliente não informado'}</Text>
+						<Text style={styles.cellSubtitle} numberOfLines={1}>
+							{item?.user?.name?.split(' ')[0] ?? 'N/A'}
+						</Text>
 					</View>
 				),
 			},
 			{
 				key: 'orderDate',
 				label: 'Data',
-				flex: 0.8,
+				flex: 1,
 				render: (item: any) => (
 					<Text style={styles.tableCellText}>
-						{item?.orderDate ? new Date(item.orderDate).toLocaleString() : 'Sem data'}
+						{formatShortDate(item?.orderDate)}
 					</Text>
 				),
 			},
 			{
 				key: 'status',
 				label: 'Status',
-				flex: 0.7,
-				render: (item: any) => <Text style={styles.statusBadge}>{mapOrderStatus(item?.status ?? 'pending')}</Text>,
+				flex: 1.2,
+				render: (item: any) => (
+					<Text style={styles.statusBadge} numberOfLines={1} ellipsizeMode="tail">
+						{mapOrderStatus(item?.status ?? 'pending')}
+					</Text>
+				),
 			},
 			{
 				key: 'totalAmount',
 				label: 'Total',
-				flex: 0.6,
+				flex: 0.8,
 				align: 'right',
 				render: (item: any) => (
 					<Text style={styles.cellTitle}>R$ {Number(item?.totalAmount ?? item?.total ?? 0).toFixed(2)}</Text>
 				),
-			},
-			{
-				key: 'orderActions',
-				label: '',
-				flex: 0.6,
-				align: 'right',
-				render: (item: any) => renderActionButtons('order', item),
 			},
 		];
 
@@ -940,7 +980,7 @@ export default function AdminDashboard() {
 			if (loading) {
 				return (
 					<View style={styles.loadingState}>
-						<ActivityIndicator size="small" color={palette.info} />
+						<ActivityIndicator size="small" color={palette.primary} />
 						<Text style={styles.loadingText}>Carregando dados...</Text>
 					</View>
 				);
@@ -1014,7 +1054,9 @@ export default function AdminDashboard() {
 			}
 			return (
 				<View>
-					{renderTable(orderColumns, filteredOrders, 'Nenhum pedido encontrado.')}
+					{renderTable(orderColumns, filteredOrders, 'Nenhum pedido encontrado.', (item) => {
+						if (item?.id) router.push(`/admin/orders/${item.id}`);
+					})}
 					<Pagination
 						currentPage={ordersPage}
 						totalPages={totalOrdersPages}
@@ -1058,7 +1100,11 @@ export default function AdminDashboard() {
 									<Ionicons name={card.icon} size={20} color="#0F172A" />
 								</View>
 								<Text style={styles.statLabel}>{card.label}</Text>
-								<Text style={styles.statValue}>{card.value}</Text>
+								{card.value === 'loading' ? (
+									<ActivityIndicator size="small" color={palette.primary} style={{ marginVertical: 4, alignSelf: 'flex-start' }} />
+								) : (
+									<Text style={styles.statValue}>{card.value}</Text>
+								)}
 								<Text style={styles.statMeta}>{card.meta}</Text>
 							</View>
 						))}
@@ -1092,7 +1138,7 @@ export default function AdminDashboard() {
 								<Text style={styles.sectionSubtitle}>{currentTabMeta?.description}</Text>
 							</View>
 							{selectedTab === 'users' && (
-								<TouchableOpacity style={styles.secondaryButton} onPress={fetchUsers}>
+								<TouchableOpacity style={styles.secondaryButton} onPress={() => fetchUsers(false)}>
 									<Ionicons name="refresh-outline" size={16} color="#0F172A" />
 									<Text style={styles.secondaryButtonText}>Atualizar lista</Text>
 								</TouchableOpacity>
@@ -1100,7 +1146,11 @@ export default function AdminDashboard() {
 						</View>
 
 						<View style={styles.utilityRow}>
-							<View style={[styles.searchBar, selectedTab === 'orders' && styles.searchBarOrders]}>
+							<View style={[
+								styles.searchBar,
+								selectedTab === 'orders' && styles.searchBarOrders,
+								isSearchFocused && { borderColor: '#00BCD4', borderWidth: 1.5 }
+							]}>
 								<Ionicons name="search-outline" size={18} color={palette.muted} />
 								<TextInput
 									style={styles.searchInput}
@@ -1112,6 +1162,10 @@ export default function AdminDashboard() {
 									placeholderTextColor={palette.muted}
 									value={searchQuery}
 									onChangeText={setSearchQuery}
+									onFocus={() => setIsSearchFocused(true)}
+									onBlur={() => setIsSearchFocused(false)}
+									cursorColor="#00BCD4"
+									selectionColor="#00BCD4"
 									onSubmitEditing={() => {
 										if (selectedTab === 'orders') {
 											handleOrdersSearch();
@@ -1295,7 +1349,7 @@ export default function AdminDashboard() {
 			flexDirection: 'row',
 			flexWrap: 'wrap',
 			gap: 12,
-			marginBottom: 24,
+			marginBottom: 0,
 		},
 		statCard: {
 			flex: 1,
@@ -1487,7 +1541,7 @@ export default function AdminDashboard() {
 		},
 		tableCell: {
 			justifyContent: 'center',
-			paddingHorizontal: 12,
+			paddingHorizontal: 6,
 			flexShrink: 1,
 		},
 		tableCellText: {
@@ -1532,11 +1586,11 @@ export default function AdminDashboard() {
 			alignSelf: 'flex-start',
 			backgroundColor: '#E0F2FE',
 			color: '#0369A1',
-			paddingHorizontal: 10,
+			paddingHorizontal: 8,
 			paddingVertical: 4,
 			borderRadius: 999,
 			fontWeight: '600',
-			fontSize: 12,
+			fontSize: 11,
 		},
 		rowActions: {
 			flexDirection: 'row',
@@ -1571,7 +1625,7 @@ export default function AdminDashboard() {
 		rowActionGhost: {
 			backgroundColor: '#E2E8F0',
 			minWidth: undefined,
-			paddingHorizontal: 10,
+			paddingHorizontal: 8,
 		},
 		rowActionGhostText: {
 			color: palette.text,

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { CategoryDTO } from '@/services/api';
+import { Input } from '@/components/ui/Input';
 
 type Props = {
   visible: boolean;
@@ -41,14 +42,9 @@ export default function ProductEditModal({ visible, product, categories, loading
             <ActivityIndicator color="#00BCD4" />
           ) : (
             <View>
-              <Text style={styles.label}>Nome</Text>
-              <TextInput style={styles.input} value={name} onChangeText={setName} />
-
-              <Text style={styles.label}>Preço</Text>
-              <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
-
-              <Text style={styles.label}>Estoque</Text>
-              <TextInput style={styles.input} value={stock} onChangeText={setStock} keyboardType="numeric" />
+              <Input label="Nome" value={name} onChangeText={setName} />
+              <Input label="Preço" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <Input label="Estoque" value={stock} onChangeText={setStock} keyboardType="numeric" />
 
               <Text style={styles.label}>Categoria</Text>
               <View style={styles.pickerContainer}>
@@ -80,10 +76,9 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   content: { backgroundColor: '#fff', width: '90%', borderRadius: 12, padding: 16 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  label: { fontSize: 14, fontWeight: '600', marginTop: 8 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, marginTop: 6, backgroundColor: '#fafafa' },
-  pickerContainer: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginTop: 6, overflow: 'hidden', backgroundColor: '#fafafa' },
-  buttonsRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
+  label: { fontSize: 14, fontWeight: '600', marginTop: 8, marginBottom: 6, color: '#333' },
+  pickerContainer: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, overflow: 'hidden', backgroundColor: '#fff' },
+  buttonsRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 24 },
   button: { padding: 12, borderRadius: 8, marginLeft: 8 },
   cancel: { backgroundColor: '#f0f0f0' },
   confirm: { backgroundColor: '#00BCD4' },

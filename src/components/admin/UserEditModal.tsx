@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { User, UserRole, UpdateUserRequest } from '@/types/auth';
+import { Input } from '@/components/ui/Input';
 
 interface UserEditModalProps {
   visible: boolean;
@@ -72,70 +73,65 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ visible, user, loading = 
         <View style={styles.modal}>
           <Text style={styles.title}>Editar Usuário</Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nome</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome completo"
-              value={form.name}
-              onChangeText={(text) => handleChange('name', text)}
-              editable={!loading}
-            />
-          </View>
+          <Input
+            label="Nome"
+            placeholder="Nome completo"
+            value={form.name}
+            onChangeText={(text) => handleChange('name', text)}
+            editable={!loading}
+            containerStyle={styles.inputGroup}
+          />
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="email@exemplo.com"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={form.email}
-              onChangeText={(text) => handleChange('email', text)}
-              editable={!loading}
-            />
-          </View>
+          <Input
+            label="Email"
+            placeholder="email@exemplo.com"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={form.email}
+            onChangeText={(text) => handleChange('email', text)}
+            editable={!loading}
+            containerStyle={styles.inputGroup}
+          />
 
           <View style={styles.row}>
-            <View style={[styles.inputGroup, styles.half]}>
-              <Text style={styles.label}>CPF</Text>
-              <TextInput
-                style={styles.input}
+            <View style={styles.half}>
+              <Input
+                label="CPF"
                 placeholder="Apenas números"
                 keyboardType="numeric"
                 maxLength={11}
                 value={form.cpf}
                 onChangeText={(text) => handleChange('cpf', text.replace(/\D/g, ''))}
                 editable={!loading}
+                containerStyle={styles.inputGroup}
               />
             </View>
 
-            <View style={[styles.inputGroup, styles.halfLeft]}>
-              <Text style={styles.label}>Telefone</Text>
-              <TextInput
-                style={styles.input}
+            <View style={styles.halfLeft}>
+              <Input
+                label="Telefone"
                 placeholder="Apenas números"
                 keyboardType="phone-pad"
                 maxLength={11}
                 value={form.phoneNumber}
                 onChangeText={(text) => handleChange('phoneNumber', text.replace(/\D/g, ''))}
                 editable={!loading}
+                containerStyle={styles.inputGroup}
               />
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Endereço (texto livre)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Rua, número, cidade"
-              multiline
-              numberOfLines={3}
-              value={form.address}
-              onChangeText={(text) => handleChange('address', text)}
-              editable={!loading}
-            />
-          </View>
+          <Input
+            label="Endereço (texto livre)"
+            placeholder="Rua, número, cidade"
+            multiline
+            numberOfLines={3}
+            value={form.address}
+            onChangeText={(text) => handleChange('address', text)}
+            editable={!loading}
+            style={styles.textArea}
+            containerStyle={styles.inputGroup}
+          />
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Tipo</Text>
@@ -197,15 +193,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.select({ ios: 12, default: 10 }),
-    fontSize: 15,
-    color: '#111827',
   },
   textArea: {
     minHeight: 84,

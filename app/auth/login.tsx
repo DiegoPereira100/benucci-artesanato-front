@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import authService from '../../src/services/auth';
 import { redirectAfterAuth } from '../../src/utils/navigation';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 
 // Esquema de validação
 const loginSchema = z.object({
@@ -100,51 +101,43 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form}>
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email</Text>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[styles.input, errors.email && styles.inputError]}
-                    placeholder="seu@email.com"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {errors.email && (
-                <Text style={styles.errorText}>{errors.email.message}</Text>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Email"
+                  placeholder="seu@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isLoading}
+                  error={errors.email?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Senha</Text>
-              <Controller
-                control={control}
-                name="password"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    style={[styles.input, errors.password && styles.inputError]}
-                    placeholder="Digite sua senha"
-                    secureTextEntry
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    editable={!isLoading}
-                  />
-                )}
-              />
-              {errors.password && (
-                <Text style={styles.errorText}>{errors.password.message}</Text>
+            <Controller
+              control={control}
+              name="password"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Senha"
+                  placeholder="Digite sua senha"
+                  secureTextEntry
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isLoading}
+                  error={errors.password?.message}
+                  containerStyle={styles.inputContainer}
+                />
               )}
-            </View>
+            />
             <Button
               title="Entrar"
               onPress={handleSubmit(handleLogin)}

@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import toast from '../../src/utils/toast';
 import { UpdateUserRequest, User } from '@/types/auth';
+import { Input } from '@/components/ui/Input';
 import {
   AddressParts,
   parseAddress,
@@ -490,27 +490,22 @@ const renderInput = (
   options: InputOptions
 ) => {
   return (
-    <View key={key} style={styles.inputGroup}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <TextInput
-        style={[
-          styles.input,
-          options.multiline && styles.inputMultiline,
-          !options.editable && styles.inputDisabled,
-        ]}
-        value={options.value}
-        onChangeText={options.onChangeText}
-        editable={options.editable}
-        placeholder={options.placeholder}
-        keyboardType={options.keyboardType}
-        autoCapitalize={options.autoCapitalize ?? 'sentences'}
-        autoCorrect={false}
-        multiline={options.multiline}
-        secureTextEntry={options.secureTextEntry}
-        textAlignVertical={options.multiline ? 'top' : 'center'}
-  maxLength={options.maxLength}
-      />
-    </View>
+    <Input
+      key={key}
+      label={label}
+      value={options.value}
+      onChangeText={options.onChangeText}
+      editable={options.editable}
+      placeholder={options.placeholder}
+      keyboardType={options.keyboardType}
+      autoCapitalize={options.autoCapitalize ?? 'sentences'}
+      autoCorrect={false}
+      multiline={options.multiline}
+      secureTextEntry={options.secureTextEntry}
+      maxLength={options.maxLength}
+      containerStyle={styles.inputGroup}
+      style={options.multiline ? styles.inputMultiline : undefined}
+    />
   );
 };
 
@@ -622,27 +617,8 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontStyle: 'italic',
   },
-  inputLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    fontSize: 15,
-    color: '#111827',
-  },
   inputMultiline: {
     minHeight: 80,
-  },
-  inputDisabled: {
-    backgroundColor: '#F3F4F6',
-    color: '#9CA3AF',
   },
   divider: {
     height: 1,
