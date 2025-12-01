@@ -1,14 +1,35 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
-import { CartProvider } from '@/contexts/CartContext'; // ← ADICIONAR ESTA LINHA
+import { CartProvider } from '@/contexts/CartContext';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { router, useSegments, useRootNavigationState } from 'expo-router';
+import api from '@/services/api';
+import { mlService } from '@/services/mlService';
 
 function InitialLayout() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
+
+  // Wake up the server (Cold Start mitigation)
+  useEffect(() => {
+    const wakeUpServer = async () => {
+      try {
+        console.log('Enviando ping para acordar os servidores...');
+        // Dispara os pings em paralelo
+        Promise.all([
+          api.wakeUp(),
+          mlService.wakeUp()
+        ]);
+        console.log('Pings enviados!');
+      } catch (error) {
+        // Ignora erro, é apenas um ping
+        console.log('Ping falhou:', error);
+      }
+    };
+    wakeUpServer();
+  }, []);
 
   useEffect(() => {
     console.log('=== DEBUG _LAYOUT ===');
@@ -69,11 +90,9 @@ function InitialLayout() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      {/* ← ADICIONAR O CARTPROVIDER AQUI */}
       <CartProvider>
         <InitialLayout />
       </CartProvider>
-      {/* ← FIM DO CARTPROVIDER */}
     </AuthProvider>
   );
 }

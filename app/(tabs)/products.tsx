@@ -156,13 +156,24 @@ export default function ExploreScreen() {
       
       if (isFiltering) {
         // Se estamos filtrando, precisamos garantir que temos todos os produtos (Modo Cliente)
-        // Usamos uma ref para evitar chamadas duplicadas enquanto a primeira ainda está em andamento
-        if ((!isClientMode || products.length < 100) && !isFetchingAll.current && allProducts.length === 0) {
+        
+        // CASO 1: Temos todos os produtos em cache (allProducts). Usamos eles!
+        if (allProducts.length > 0) {
+          // Se não estamos no modo cliente OU se a lista atual é menor que a lista completa (ex: vindo de uma página do servidor)
+          if (!isClientMode || products.length < allProducts.length) {
+            console.log('products.tsx -> Switching to Client Mode (using cached allProducts)');
+            setProducts(allProducts);
+            setIsClientMode(true);
+            // Não resetamos a página aqui para não atrapalhar a UX se o usuário só mudou o filtro
+            // Mas se ele veio do modo servidor, talvez devêssemos. 
+            // O comportamento seguro é resetar se estava no modo servidor.
+            if (!isClientMode) setPage(0);
+          }
+        } 
+        // CASO 2: Não temos allProducts. Precisamos buscar.
+        else if ((!isClientMode || products.length < 100) && !isFetchingAll.current) {
           console.log('products.tsx -> Switching to Client Mode (fetching all products)');
           fetchProducts(0, 1000);
-        } else {
-          // Se já temos os produtos (do prefetch ou fetch anterior), apenas atualizamos o estado
-          if (!isClientMode) setIsClientMode(true);
         }
       } else {
         // Sem filtros: usar paginação do servidor
@@ -437,9 +448,8 @@ export default function ExploreScreen() {
   }, [products, activeCategoryId, searchQuery, priceSort, alphaSort, categoryOverrides, isClientMode]);
 
   const handleProductPress = useCallback((product: Product) => {
-    setSelectedProduct(product);
-    setModalVisible(true);
-  }, []);
+    router.push(`/product/${product.id}`);
+  }, [router]);
 
   const togglePriceSort = useCallback((direction: 'asc' | 'desc') => {
     setPriceSort((current) => (current === direction ? null : direction));
@@ -454,18 +464,6 @@ export default function ExploreScreen() {
       return !current;
     });
   }, []);
-
-  const handleAddToCart = (product: Product, quantity: number) => {
-    // Verificar se há estoque suficiente
-    if (quantity > product.stock) {
-      toast.showError('Estoque insuficiente', `Disponível apenas ${product.stock} unidade(s) deste produto.`);
-      return;
-    }
-
-    addToCart(product, quantity);
-    setModalVisible(false);
-    toast.showSuccess('Adicionado ao carrinho', `${quantity}x ${product.name} adicionado ao carrinho`);
-  };
 
   const getUserInitials = (name: string) => {
     if (!name) return '?';
@@ -683,16 +681,6 @@ export default function ExploreScreen() {
         maxToRenderPerBatch={5}
         windowSize={3}
         removeClippedSubviews={true}
-      />
-
-      <ProductModal
-        visible={modalVisible}
-        product={selectedProduct}
-        onClose={() => {
-          setModalVisible(false);
-          setSelectedProduct(null);
-        }}
-        onAddToCart={handleAddToCart}
       />
     </SafeAreaView>
   );

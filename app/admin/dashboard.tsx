@@ -112,6 +112,10 @@ export default function AdminDashboard() {
 	const [lowStockCount, setLowStockCount] = useState(0);
 	const [users, setUsers] = useState<User[]>([]);
 	const [orders, setOrders] = useState<any[]>([]);
+	const [allOrdersCache, setAllOrdersCache] = useState<any[]>([]);
+	const [ordersPage, setOrdersPage] = useState(0);
+	const [totalOrdersPages, setTotalOrdersPages] = useState(0);
+	const [totalOrdersCount, setTotalOrdersCount] = useState(0);
 
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -140,6 +144,7 @@ export default function AdminDashboard() {
 	useEffect(() => {
 		if (selectedTab === 'products') fetchProducts(0);
 		if (selectedTab === 'users') fetchUsers();
+		if (selectedTab === 'orders') fetchOrders(0, true);
 	}, [selectedTab]);
 
 	useEffect(() => {
@@ -280,6 +285,55 @@ export default function AdminDashboard() {
 		} finally {
 			setLoading(false);
 		}
+	}
+
+	async function fetchOrders(pageNumber: number = 0, forceRefresh: boolean = false) {
+		setError(null);
+		setLoading(true);
+		try {
+			// Workaround: Backend does not support listing all orders.
+			// We fetch all users, then fetch orders for each user, and aggregate.
+			let allOrders = forceRefresh ? [] : allOrdersCache;
+			
+			if (allOrders.length === 0) {
+				const users = await userService.getAllUsers();
+				const ordersPromises = users.map(async (u) => {
+					try {
+						const userOrders = await orderService.getUserOrders(u.id);
+						// Inject user info into each order if missing, using the user object we already have
+						return Array.isArray(userOrders)
+							? userOrders.map((o) => ({ ...o, user: o.user || u }))
+							: [];
+					} catch (e) {
+						return [];
+					}
+				});
+				const ordersArrays = await Promise.all(ordersPromises);
+				allOrders = ordersArrays.flat();
+				// Sort by ID desc (newest first)
+				allOrders.sort((a, b) => (b.id || 0) - (a.id || 0));
+				setAllOrdersCache(allOrders);
+			}
+
+			const pageSize = 10;
+			const start = pageNumber * pageSize;
+			const end = start + pageSize;
+			const pagedOrders = allOrders.slice(start, end);
+
+			setOrders(pagedOrders);
+			setOrdersPage(pageNumber);
+			setTotalOrdersPages(Math.ceil(allOrders.length / pageSize));
+			setTotalOrdersCount(allOrders.length);
+		} catch (e: any) {
+			setError('Erro ao buscar pedidos');
+			console.error(e);
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	function handleOrdersPageChange(newPage: number) {
+		fetchOrders(newPage, false);
 	}
 
 	async function ensureUserHasServerId(target: User | null): Promise<number | null> {
@@ -423,7 +477,7 @@ export default function AdminDashboard() {
 		if (selectedTab !== 'orders') return;
 		const term = searchQuery.trim();
 		if (!term) {
-			setError('Informe um termo para buscar pedidos');
+			fetchOrders(0, false);
 			return;
 		}
 		if (!isNumericString(term)) {
@@ -549,7 +603,7 @@ export default function AdminDashboard() {
 				value: orders.length,
 				meta: orders.length ? 'Dados atualizados' : 'Busque pelo ID do cliente',
 				icon: 'receipt-outline' as const,
-				tint: '#00bbd45d ',
+				tint: '#00bbd45d',
 			},
 		];
 
@@ -958,7 +1012,16 @@ export default function AdminDashboard() {
 			if (selectedTab === 'users') {
 				return renderUserDirectory();
 			}
-			return renderTable(orderColumns, filteredOrders, 'Nenhum pedido encontrado para este usuário.');
+			return (
+				<View>
+					{renderTable(orderColumns, filteredOrders, 'Nenhum pedido encontrado.')}
+					<Pagination
+						currentPage={ordersPage}
+						totalPages={totalOrdersPages}
+						onPageChange={handleOrdersPageChange}
+					/>
+				</View>
+			);
 		};
 
 		return (
@@ -1213,7 +1276,7 @@ export default function AdminDashboard() {
 		},
 		quickAction: {
 			flex: 1,
-			minWidth: 160,
+			minWidth: 140,
 		},
 		secondaryCTA: {
 			backgroundColor: palette.text,
@@ -1489,7 +1552,7 @@ export default function AdminDashboard() {
 			paddingVertical: 6,
 			borderRadius: 8,
 			gap: 4,
-			minWidth: 70,
+			width: 90,
 		},
 		rowActionPrimary: {
 			backgroundColor: palette.info,

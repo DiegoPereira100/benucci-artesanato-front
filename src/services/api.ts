@@ -148,6 +148,17 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       async (error) => {
+        // Verifica se a resposta é HTML (erro do Cloudflare/Render)
+        if (error.response && typeof error.response.data === 'string' && error.response.data.includes('<!DOCTYPE html>')) {
+             console.error('API Error: Recebido HTML em vez de JSON. Provável erro 5xx do servidor.', error.response.status);
+             // Retorna um erro formatado para não quebrar o JSON.parse em outros lugares
+             return Promise.reject({
+                 message: 'O servidor está temporariamente indisponível. Tente novamente mais tarde.',
+                 status: error.response.status,
+                 isServerHtmlError: true
+             });
+        }
+
         try {
           const status = error?.response?.status;
           console.log('ApiService.response.interceptor -> error status:', status);
@@ -189,15 +200,25 @@ class ApiService {
         console.warn('ApiService.saveToken -> could not set default header:', e);
       }
     } catch (error) {
-      console.error('Erro ao salvar token:', error);
+      console.error('ApiService.saveToken -> error saving token', error);
+    }
+  }
+
+  async wakeUp(): Promise<void> {
+    try {
+      console.log('ApiService.wakeUp -> sending ping to wake up server');
+      await this.publicApi.get('/categories/list');
+      console.log('ApiService.wakeUp -> server is awake');
+    } catch (error) {
+      console.log('ApiService.wakeUp -> ping failed (expected if server is sleeping or offline)', error);
     }
   }
 
   async getToken(): Promise<string | null> {
     try {
-      const t = await AsyncStorage.getItem('@auth_token');
-      console.log('ApiService.getToken -> token exists:', !!t);
-      return t;
+      const token = await AsyncStorage.getItem('@auth_token');
+      // console.log('ApiService.getToken -> token exists:', !!token);
+      return token;
     } catch (error) {
       console.error('Erro ao buscar token:', error);
       return null;
@@ -206,6 +227,7 @@ class ApiService {
 
   async removeToken(): Promise<void> {
     try {
+      console.log('ApiService.removeToken -> removing token');
       await AsyncStorage.removeItem('@auth_token');
     } catch (error) {
       console.error('Erro ao remover token:', error);

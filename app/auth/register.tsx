@@ -224,7 +224,7 @@ export default function RegisterScreen() {
             />
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.card}>
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Nome Completo</Text>
               <Controller
@@ -600,7 +600,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
     position: 'relative',
   },
   waveTop: {
@@ -653,8 +653,16 @@ const styles = StyleSheet.create({
     height: 120,
     resizeMode: 'contain',
   },
-  form: {
+  card: {
     width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   inputContainer: {
     marginBottom: 16,
