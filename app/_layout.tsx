@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
@@ -6,6 +7,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { router, useSegments, useRootNavigationState } from 'expo-router';
 import api from '@/services/api';
 import { mlService } from '@/services/mlService';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 function InitialLayout() {
   const { user, isLoading } = useAuth();
@@ -89,11 +91,13 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <InitialLayout />
-      </CartProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <CartProvider>
+          <InitialLayout />
+        </CartProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
 
