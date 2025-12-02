@@ -315,11 +315,29 @@ export const productService = {
         }
       });
 
-      const response = await ApiService.instance.post<ProductDTO>('/products', multipartData, {
-        transformRequest: (data, headers) => {
-          return data;
+      const token = await ApiService.getToken();
+      const baseURL = ApiService.instance.defaults.baseURL;
+
+      const response = await fetch(`${baseURL}/products`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
         },
+        body: multipartData,
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Erro ${response.status}`;
+        try {
+           const errorJson = JSON.parse(errorText);
+           errorMessage = errorJson.message || errorJson.error || errorMessage;
+        } catch (e) {}
+        throw new Error(errorMessage);
+      }
+
+      const responseData = await response.json();
 
       const fallbackDto: ProductDTO = {
         id: NaN,
@@ -339,7 +357,7 @@ export const productService = {
         name: productData.categoryName,
       };
 
-      const responseDto = ensureProductDto(response.data, 'createProduct(multipart)', fallbackDto);
+      const responseDto = ensureProductDto(responseData, 'createProduct(multipart)', fallbackDto);
       const normalized = applyOverrideToDto(responseDto, selectedCategory);
 
       let normalizedUploadId = Number((normalized as any)?.id);
@@ -437,13 +455,31 @@ export const productService = {
         });
       }
 
-      const response = await ApiService.instance.put<ProductDTO>(`/products/${id}`, formData, {
-        transformRequest: (data, headers) => {
-          return data;
-        },
+      const token = await ApiService.getToken();
+      const baseURL = ApiService.instance.defaults.baseURL;
+
+      const response = await fetch(`${baseURL}/products/${id}`, {
+          method: 'PUT',
+          headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json',
+          },
+          body: formData,
       });
 
-      const dto = ensureProductDto(response.data, 'updateProduct');
+      if (!response.ok) {
+          const errorText = await response.text();
+          let errorMessage = `Erro ${response.status}`;
+          try {
+             const errorJson = JSON.parse(errorText);
+             errorMessage = errorJson.message || errorJson.error || errorMessage;
+          } catch (e) {}
+          throw new Error(errorMessage);
+      }
+
+      const responseData = await response.json();
+
+      const dto = ensureProductDto(responseData, 'updateProduct');
       const overrides = await loadCategoryOverrides();
       let normalized = applyOverrideToDto(dto, overrides[String(id)]);
 
