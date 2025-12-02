@@ -9,7 +9,7 @@
       "@/constants/*": ["./constants/*"],
       "@/hooks/*": ["src/hooks/*"],
       "@/types/*": ["src/types/*"],
-      "@/utils/*": ["./utils/*"],
+      "@/utils/*": ["src/utils/*"],
       "@/assets/*": ["./assets/*"],
       "@/services/*": ["./src/services/*"]
     }

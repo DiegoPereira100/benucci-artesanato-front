@@ -399,11 +399,55 @@ export const productService = {
   updateProduct: async (id: number, productData: any): Promise<any> => {
     try {
       console.log('productService.updateProduct -> updating', id, productData);
-  const response = await ApiService.instance.put<ProductDTO>(`/products/${id}`, productData);
-  const dto = ensureProductDto(response.data, 'updateProduct');
-  const overrides = await loadCategoryOverrides();
-  let normalized = applyOverrideToDto(dto, overrides[String(id)]);
 
+      // Backend expects multipart/form-data with individual RequestParams
+      const formData = new FormData();
+      
+      if (productData.name) formData.append('name', productData.name);
+      if (productData.description) formData.append('description', productData.description);
+      if (productData.price !== undefined) formData.append('price', String(productData.price));
+      if (productData.stock !== undefined) formData.append('stock', String(productData.stock));
+      
+      // Handle category/subcategory logic if needed, though backend asks for subcategoryId directly
+      // If the UI passes categoryId, we might need to map it or ignore if backend only takes subcategoryId
+      // Looking at backend: @RequestParam(required = false) Long subcategoryId
+      // It doesn't seem to take categoryId directly for update? 
+      // But let's send what we have.
+      if (productData.subcategoryId) formData.append('subcategoryId', String(productData.subcategoryId));
+      
+      // Theme IDs
+      if (Array.isArray(productData.themeIds)) {
+          // Spring Boot often expects multiple params with same name for lists, or comma separated
+          // Let's try appending multiple times
+          productData.themeIds.forEach((tid: number) => formData.append('themeIds', String(tid)));
+      }
+
+      // Images (if any)
+      if (Array.isArray(productData.images)) {
+        productData.images.forEach((file: any) => {
+            if ('file' in file) {
+                formData.append('images', file.file, file.name);
+            } else if (file.uri) {
+                formData.append('images', {
+                    uri: file.uri,
+                    name: file.name || 'image.jpg',
+                    type: file.type || 'image/jpeg',
+                } as any);
+            }
+        });
+      }
+
+      const response = await ApiService.instance.put<ProductDTO>(`/products/${id}`, formData, {
+          headers: {
+              'Content-Type': 'multipart/form-data',
+          }
+      });
+
+      const dto = ensureProductDto(response.data, 'updateProduct');
+      const overrides = await loadCategoryOverrides();
+      let normalized = applyOverrideToDto(dto, overrides[String(id)]);
+
+      // Update local override cache if category changed
       const candidateId = Number(productData?.categoryId ?? productData?.category?.id);
       const candidateName: string | undefined = productData?.category?.name;
       if (Number.isFinite(candidateId) && candidateId > 0 && typeof candidateName === 'string' && candidateName.trim().length > 0) {

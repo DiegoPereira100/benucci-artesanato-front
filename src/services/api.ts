@@ -4,6 +4,7 @@ import axios, { AxiosInstance } from "axios";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product } from '@/types/product';
 import { API_BASE_URL, API_TIMEOUT } from '@env';
+import * as Linking from 'expo-linking';
 
 class ApiService {
   private api: AxiosInstance;
@@ -589,21 +590,72 @@ class ApiService {
    * Criar pedido (requer autenticação)
    */
   async createOrder(orderData: OrderRequestDTO): Promise<OrderResponseDTO> {
+    // OBS: O endpoint /api/payments/preference do backend possui um bug onde ele cria o pedido (deduzindo estoque)
+    // mas falha ao criar a preferência, retornando erro 500. Como a transação não é revertida, tentar chamar esse endpoint
+    // e depois chamar o /orders no catch causa DUPLA DEDUÇÃO de estoque.
+    // Por isso, vamos chamar diretamente o /orders e gerar a preferência no frontend.
+
     try {
-      // Tenta criar via PaymentController para garantir o retorno do link de pagamento
-      console.log('Criando pedido via /api/payments/preference');
-      const response = await this.api.post<any>('/api/payments/preference', orderData);
-      return response.data;
-    } catch (error: any) {
-      console.warn('Erro em /api/payments/preference, tentando fallback para /orders', error?.message);
-      try {
+        // Cria o pedido via /orders (deduz estoque apenas uma vez)
         const response = await this.api.post<OrderResponseDTO>('/orders', orderData);
-        return response.data;
+        const order = response.data;
+
+        // WORKAROUND: Gerar preferência do Mercado Pago diretamente no Frontend
+        // Necessário pois o backend retorna erro 500 e não configura back_urls para Deep Linking
+        try {
+          console.log('Tentando gerar preferência MP via Frontend (Workaround com Deep Linking)...');
+          const mpToken = "APP_USR-7329173875972159-120123-c8e1fc25840c193bbf8acf2550bbcdd4-3032944549";
+          
+          const itemsList = (order.items || []).map((item: any) => ({
+            id: String(item.productId),
+            title: item.productName || `Produto ${item.productId}`,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unitPrice),
+            currency_id: 'BRL',
+          }));
+
+          // Configuração com Deep Linking para retorno ao app
+          const successUrl = Linking.createURL('success');
+          const failureUrl = Linking.createURL('failure');
+          const pendingUrl = Linking.createURL('pending');
+
+          const mpBody = {
+            items: itemsList,
+            external_reference: String(order.id),
+            notification_url: "https://benucci-artesanato.onrender.com/webhook/mercadopago",
+            back_urls: {
+              success: successUrl,
+              failure: failureUrl,
+              pending: pendingUrl
+            },
+            auto_return: "approved",
+          };
+
+          const mpResponse = await axios.post('https://api.mercadopago.com/checkout/preferences', mpBody, {
+            headers: {
+              'Authorization': `Bearer ${mpToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (mpResponse.data && mpResponse.data.init_point) {
+            console.log('Preferência MP gerada com sucesso no front:', mpResponse.data.init_point);
+            return {
+              ...order,
+              mpInitPoint: mpResponse.data.init_point,
+              initPoint: mpResponse.data.init_point,
+              sandboxLink: mpResponse.data.sandbox_init_point
+            };
+          }
+        } catch (mpError: any) {
+          console.error('Erro ao gerar preferência MP no front:', mpError?.response?.data || mpError.message);
+        }
+
+        return order;
       } catch (e) {
         console.error('Erro ao criar pedido:', e);
         throw e;
       }
-    }
   }
 
   /**

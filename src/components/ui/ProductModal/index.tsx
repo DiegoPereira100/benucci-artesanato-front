@@ -33,7 +33,9 @@ export function ProductModal({ visible, product, onClose, onAddToCart }: Product
   };
 
   const handleIncrement = () => {
-    setQuantity(prev => prev + 1);
+    if (product && quantity < product.stock) {
+      setQuantity(prev => prev + 1);
+    }
   };
 
   const handleDecrement = () => {

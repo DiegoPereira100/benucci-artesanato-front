@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,66 +60,87 @@ export default function AdminOrderDetails() {
 	const [loading, setLoading] = useState(true);
 	const [order, setOrder] = useState<any>(null);
 	const [error, setError] = useState<string | null>(null);
+    const [processing, setProcessing] = useState(false);
+
+    const fetchOrder = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            if (!id) return setError('ID do pedido inválido');
+
+            // 1. Fetch Order
+            const res = await orderService.getOrderById(Number(id));
+
+            let orderData = res;
+
+            // 2. If user is missing, try to find it (Frontend Workaround)
+            if (!orderData.user && !orderData.customer) {
+                try {
+                    const users = await userService.getAllUsers();
+                    // Search for the user who owns this order
+                    const searchPromises = users.map(async (u) => {
+                        try {
+                            const userOrders = await orderService.getUserOrders(u.id);
+                            if (Array.isArray(userOrders) && userOrders.some((o) => o.id === orderData.id)) {
+                                return u;
+                            }
+                        } catch (e) {
+                            return null;
+                        }
+                        return null;
+                    });
+
+                    const results = await Promise.all(searchPromises);
+                    const foundUser = results.find((u) => u !== null);
+
+                    if (foundUser) {
+                        orderData = { ...orderData, user: foundUser };
+                    }
+                } catch (err) {
+                    console.log('Erro ao buscar usuário dono do pedido', err);
+                }
+            }
+
+            setOrder(orderData);
+        } catch (e: any) {
+            console.error('Erro ao carregar pedido:', e);
+            setError(e?.message || 'Erro ao buscar pedido');
+            toast.showError('Erro', e?.message || 'Não foi possível carregar o pedido');
+        } finally {
+            setLoading(false);
+        }
+    };
 
 	useEffect(() => {
-		let cancelled = false;
-		async function load() {
-			try {
-				setLoading(true);
-				setError(null);
-				if (!id) return setError('ID do pedido inválido');
-
-				// 1. Fetch Order
-				const res = await orderService.getOrderById(Number(id));
-				if (cancelled) return;
-
-				let orderData = res;
-
-				// 2. If user is missing, try to find it (Frontend Workaround)
-				if (!orderData.user && !orderData.customer) {
-					try {
-						const users = await userService.getAllUsers();
-						// Search for the user who owns this order
-						const searchPromises = users.map(async (u) => {
-							try {
-								const userOrders = await orderService.getUserOrders(u.id);
-								if (Array.isArray(userOrders) && userOrders.some((o) => o.id === orderData.id)) {
-									return u;
-								}
-							} catch (e) {
-								return null;
-							}
-							return null;
-						});
-
-						const results = await Promise.all(searchPromises);
-						const foundUser = results.find((u) => u !== null);
-
-						if (foundUser) {
-							orderData = { ...orderData, user: foundUser };
-						}
-					} catch (err) {
-						console.log('Erro ao buscar usuário dono do pedido', err);
-					}
-				}
-
-				if (!cancelled) setOrder(orderData);
-			} catch (e: any) {
-				console.error('Erro ao carregar pedido:', e);
-				if (!cancelled) {
-					setError(e?.message || 'Erro ao buscar pedido');
-					toast.showError('Erro', e?.message || 'Não foi possível carregar o pedido');
-				}
-			} finally {
-				if (!cancelled) setLoading(false);
-			}
-		}
-
-		load();
-		return () => {
-			cancelled = true;
-		};
+		fetchOrder();
 	}, [id]);
+
+    const handleCancelOrder = async () => {
+        Alert.alert(
+            'Cancelar Pedido',
+            'Tem certeza que deseja cancelar este pedido? Esta ação não pode ser desfeita.',
+            [
+                { text: 'Não', style: 'cancel' },
+                {
+                    text: 'Sim, Cancelar',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setProcessing(true);
+                            await orderService.updateOrderStatus(Number(id), 'CANCELED');
+                            toast.showSuccess('Sucesso', 'Pedido cancelado com sucesso.');
+                            fetchOrder(); // Reload to update status
+                        } catch (error) {
+                            console.error('Erro ao cancelar pedido:', error);
+                            toast.showError('Erro', 'Não foi possível cancelar o pedido.');
+                        } finally {
+                            setProcessing(false);
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
 	if (loading) {
 		return (
@@ -176,6 +197,24 @@ export default function AdminOrderDetails() {
 					</View>
 					<Text style={styles.dateText}>Realizado em: {date}</Text>
 				</View>
+
+                {/* Cancel Button for Admin */}
+                {(order.status || '').toLowerCase() === 'pending' && (
+                    <TouchableOpacity 
+                        style={[styles.cancelButton, processing && styles.disabledButton]}
+                        onPress={handleCancelOrder}
+                        disabled={processing}
+                    >
+                        {processing ? (
+                            <ActivityIndicator color="#DC2626" />
+                        ) : (
+                            <>
+                                <Ionicons name="close-circle-outline" size={20} color="#DC2626" />
+                                <Text style={styles.cancelButtonText}>Cancelar Pedido</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                )}
 
 				{/* Customer Info */}
 				<View style={styles.card}>
@@ -471,5 +510,25 @@ const styles = StyleSheet.create({
 		color: '#fff',
 		fontWeight: '700',
 	},
+    cancelButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FEF2F2',
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        padding: 12,
+        borderRadius: 12,
+        gap: 8,
+        marginBottom: 8,
+    },
+    cancelButtonText: {
+        color: '#DC2626',
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    disabledButton: {
+        opacity: 0.7,
+    },
 });
 

@@ -141,6 +141,39 @@ export default function CartScreen() {
 
           if (opened) {
             toast.showInfo('Redirecionando', 'Abrindo a página de pagamento...');
+            
+            // Navegar para a tela de sucesso/verificação
+            // O Deep Linking trará o usuário de volta, mas garantimos a navegação caso ele volte manualmente
+            const orderId = (res as any).id || (res as any).external_reference;
+            
+            // REMOVIDO: Navegação automática prematura que causava conflito com o Deep Link
+            // O Deep Link do Mercado Pago abrirá a tela de sucesso com os parâmetros corretos (status=approved).
+            // Se navegarmos manualmente aqui, abrimos uma tela que vê o status "pending" do backend.
+            /*
+            if (orderId) {
+              setTimeout(() => {
+                router.push({ pathname: '/success', params: { orderId } });
+              }, 1000);
+            }
+            */
+            
+            // Opcional: Mostrar um alerta ou botão para quem voltar manualmente
+            Alert.alert(
+                'Pagamento Iniciado',
+                'Após realizar o pagamento no Mercado Pago, aguarde o redirecionamento automático para confirmar seu pedido.',
+                [
+                    { text: 'Entendi', style: 'default' },
+                    { 
+                        text: 'Já paguei', 
+                        onPress: () => {
+                            if (orderId) {
+                                router.push({ pathname: '/success', params: { orderId } });
+                            }
+                        } 
+                    }
+                ]
+            );
+
           } else {
             console.warn('Falha ao abrir checkout automaticamente. URL disponível no console.');
             Alert.alert(

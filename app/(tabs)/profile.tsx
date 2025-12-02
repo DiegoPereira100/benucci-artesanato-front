@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,34 +18,22 @@ import { Ionicons } from '@expo/vector-icons';
 import toast from '../../src/utils/toast';
 import { UpdateUserRequest, User } from '@/types/auth';
 import { Input } from '@/components/ui/Input';
-import {
-  AddressParts,
-  parseAddress,
-  sanitizeAddressParts,
-  serializeAddress,
-  formatAddressSummary,
-  formatZipCode,
-  addressPartsAreEqual,
-} from '../../src/utils/address';
 
 type FormState = {
   name: string;
   email: string;
   cpf: string;
   phoneNumber: string;
-  address: AddressParts;
   password: string;
   confirmPassword: string;
 };
 
 const buildInitialForm = (source?: Partial<User>): FormState => {
-  const sanitizedAddress = sanitizeAddressParts(parseAddress(source?.address));
   return {
     name: source?.name ?? '',
     email: source?.email ?? '',
     cpf: (source?.cpf ?? '').replace(/\D/g, ''),
     phoneNumber: (source?.phoneNumber ?? '').replace(/\D/g, ''),
-    address: sanitizedAddress,
     password: '',
     confirmPassword: '',
   };
@@ -93,7 +81,6 @@ export default function ProfileScreen() {
   const refreshInFlightRef = useRef(false);
   const userRef = useRef<User | null>(user);
   const refreshUserRef = useRef(refreshUser);
-  const addressSummary = useMemo(() => formatAddressSummary(formData.address), [formData.address]);
 
   const syncForm = useCallback((source: User | null | undefined) => {
     setFormData(buildInitialForm(source ?? undefined));
@@ -142,15 +129,8 @@ export default function ProfileScreen() {
     }
   }, [user, syncForm, isEditing]);
 
-  const handleChange = (key: keyof Omit<FormState, 'address'>, value: string) => {
+  const handleChange = (key: keyof FormState, value: string) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleAddressChange = (key: keyof AddressParts, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      address: sanitizeAddressParts({ ...prev.address, [key]: value }),
-    }));
   };
 
   const handleToggleEdit = () => {
@@ -193,11 +173,6 @@ export default function ProfileScreen() {
     const normalizedPhone = (user.phoneNumber ?? '').replace(/\D/g, '');
     if (formData.phoneNumber !== normalizedPhone) {
       updates.phoneNumber = formData.phoneNumber;
-    }
-    const currentAddress = sanitizeAddressParts(parseAddress(user.address));
-    const formAddress = sanitizeAddressParts(formData.address);
-    if (!addressPartsAreEqual(formAddress, currentAddress)) {
-      updates.address = serializeAddress(formAddress);
     }
 
     if (formData.password || formData.confirmPassword) {
@@ -333,69 +308,6 @@ export default function ProfileScreen() {
               autoCapitalize: 'none',
               maxLength: 15,
             })}
-            <View style={styles.addressSection}>
-              <Text style={styles.addressTitle}>Endereço de entrega</Text>
-              {isEditing ? (
-                <>
-                  {renderInput('Rua', 'address.street', {
-                    value: formData.address.street,
-                    onChangeText: (value) => handleAddressChange('street', value),
-                    editable: true,
-                    autoCapitalize: 'words',
-                  })}
-                  {renderInput('Número', 'address.number', {
-                    value: formData.address.number,
-                    onChangeText: (value) => handleAddressChange('number', value),
-                    editable: true,
-                  })}
-                  {renderInput('Complemento', 'address.complement', {
-                    value: formData.address.complement,
-                    onChangeText: (value) => handleAddressChange('complement', value),
-                    editable: true,
-                    placeholder: 'Apto, bloco, ponto de referência',
-                  })}
-                  {renderInput('Bairro', 'address.neighborhood', {
-                    value: formData.address.neighborhood,
-                    onChangeText: (value) => handleAddressChange('neighborhood', value),
-                    editable: true,
-                    autoCapitalize: 'words',
-                  })}
-                  {renderInput('Cidade', 'address.city', {
-                    value: formData.address.city,
-                    onChangeText: (value) => handleAddressChange('city', value),
-                    editable: true,
-                    autoCapitalize: 'words',
-                  })}
-                  {renderInput('Estado (UF)', 'address.state', {
-                    value: formData.address.state.toUpperCase(),
-                    onChangeText: (value) => handleAddressChange('state', value.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2)),
-                    editable: true,
-                    autoCapitalize: 'characters',
-                    maxLength: 2,
-                  })}
-                  {renderInput('CEP', 'address.zipCode', {
-                    value: formatZipCode(formData.address.zipCode),
-                    onChangeText: (value) => handleAddressChange('zipCode', value.replace(/\D/g, '').slice(0, 8)),
-                    editable: true,
-                    keyboardType: 'numeric',
-                    placeholder: '00000-000',
-                    maxLength: 9,
-                  })}
-                </>
-              ) : (
-                <View style={styles.addressSummaryBox}>
-                  <Text
-                    style={
-                      addressSummary
-                        ? styles.addressSummaryText
-                        : styles.addressSummaryEmpty
-                    }
-                  >
-                    {addressSummary || 'Não informado'}
-                  </Text>
-                </View>
-              )}
-            </View>
 
             {isEditing && (
               <View style={styles.divider} />
@@ -439,7 +351,7 @@ export default function ProfileScreen() {
             <Text style={styles.quickTitle}>Atalhos rápidos</Text>
             <TouchableOpacity
               style={styles.quickItem}
-              onPress={() => toast.showInfo('Em breve', 'Histórico de pedidos estará disponível em breve.')}
+              onPress={() => router.push('/orders')}
             >
               <Ionicons name="receipt-outline" size={20} color="#00BCD4" />
               <View style={styles.quickTextWrapper}>
@@ -451,7 +363,7 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={styles.quickItem}
-              onPress={() => toast.showInfo('Em breve', 'Gerenciamento de endereços em desenvolvimento.')}
+              onPress={() => router.push('/addresses')}
             >
               <Ionicons name="home-outline" size={20} color="#00BCD4" />
               <View style={styles.quickTextWrapper}>
@@ -589,33 +501,6 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 14,
-  },
-  addressSection: {
-    marginTop: 6,
-    marginBottom: 10,
-  },
-  addressTitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 6,
-    fontWeight: '600',
-  },
-  addressSummaryBox: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 14,
-  },
-  addressSummaryText: {
-    fontSize: 15,
-    color: '#111827',
-    lineHeight: 22,
-  },
-  addressSummaryEmpty: {
-    fontSize: 15,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
   },
   inputMultiline: {
     minHeight: 80,

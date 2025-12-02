@@ -42,7 +42,11 @@ export default function ProductDetailsScreen() {
   }, [id]);
 
   const handleIncrement = () => {
-    setQuantity(prev => prev + 1);
+    if (product && quantity < product.stock) {
+      setQuantity(prev => prev + 1);
+    } else {
+      toast.showInfo('Limite atingido', 'Quantidade máxima em estoque alcançada');
+    }
   };
 
   const handleDecrement = () => {

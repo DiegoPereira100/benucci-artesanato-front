@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product } from '@/types/product';
 import { useAuth } from '@/hooks/useAuth';
+import toast from '../utils/toast';
 
 // Tipo para item do carrinho
 export interface CartItem {
@@ -95,17 +96,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addToCart = useCallback((product: Product, quantity: number = 1) => {
     setCartItems(prevItems => {
       const existingItem = prevItems.find(item => item.product.id === product.id);
+      const currentQty = existingItem ? existingItem.quantity : 0;
+      const availableStock = product.stock;
+      
+      let newQuantity = currentQty + quantity;
+      
+      if (newQuantity > availableStock) {
+         setTimeout(() => {
+            toast.showError('Estoque insuficiente', `Quantidade ajustada para o limite de estoque (${availableStock}).`);
+         }, 0);
+         newQuantity = availableStock;
+      }
       
       if (existingItem) {
-        // Se já existe, aumenta a quantidade
+        // Se já existe, aumenta a quantidade (ou ajusta para o limite)
         return prevItems.map(item =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: newQuantity }
             : item
         );
       } else {
         // Se não existe, adiciona novo item
-        return [...prevItems, { product, quantity }];
+        return [...prevItems, { product, quantity: newQuantity }];
       }
     });
   }, []);
@@ -122,13 +134,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     
-    setCartItems(prevItems =>
-      prevItems.map(item =>
+    setCartItems(prevItems => {
+      const item = prevItems.find(i => i.product.id === productId);
+      // Se o item não estiver no carrinho (por algum motivo), retorna o estado anterior
+      if (!item) return prevItems;
+
+      if (quantity > item.product.stock) {
+         setTimeout(() => {
+            toast.showError('Limite atingido', `Apenas ${item.product.stock} unidades disponíveis.`);
+         }, 0);
+         return prevItems.map(i => i.product.id === productId ? { ...i, quantity: item.product.stock } : i);
+      }
+
+      return prevItems.map(item =>
         item.product.id === productId
           ? { ...item, quantity }
           : item
-      )
-    );
+      );
+    });
   }, [removeFromCart]);
 
   // Limpar carrinho
