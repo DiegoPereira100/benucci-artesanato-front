@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   FlatList,
   useWindowDimensions,
   StatusBar,
-  Platform
+  Platform,
+  NativeSyntheticEvent,
+  NativeScrollEvent
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +35,7 @@ export default function ProductDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingRecs, setLoadingRecs] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
     if (id) {
@@ -90,6 +93,12 @@ export default function ProductDetailsScreen() {
     toast.showSuccess('Adicionado', `${quantity}x ${product.name} adicionado(s) ao carrinho.`);
   };
 
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x;
+    const index = Math.round(scrollPosition / width);
+    setActiveIndex(index);
+  };
+
   const isOutOfStock = (product?.stock ?? 0) <= 0;
 
   if (loading) {
@@ -110,6 +119,11 @@ export default function ProductDetailsScreen() {
       </View>
     );
   }
+
+  // Prepare images list
+  const productImages = product.gallery && product.gallery.length > 0 
+    ? product.gallery 
+    : (product.image_url ? [product.image_url] : []);
 
   return (
     <View style={styles.container}>
@@ -132,17 +146,42 @@ export default function ProductDetailsScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* Imagem Principal */}
+        {/* Carrossel de Imagens */}
         <View style={styles.imageContainer}>
-          {product.image_url ? (
-            <Image 
-              source={{ uri: product.image_url }} 
-              style={[styles.productImage, isOutOfStock && styles.productImageOutOfStock]} 
-              resizeMode="cover" 
+          {productImages.length > 0 ? (
+            <FlatList
+              data={productImages}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={handleScroll}
+              keyExtractor={(_, index) => index.toString()}
+              renderItem={({ item }) => (
+                <Image 
+                  source={{ uri: item }} 
+                  style={[styles.productImage, { width }, isOutOfStock && styles.productImageOutOfStock]} 
+                  resizeMode="cover" 
+                />
+              )}
             />
           ) : (
             <View style={[styles.productImage, styles.placeholderImage, isOutOfStock && styles.productImageOutOfStock]}>
               <Ionicons name="image-outline" size={80} color="#CBD5E1" />
+            </View>
+          )}
+          
+          {/* Indicadores (Dots) */}
+          {productImages.length > 1 && (
+            <View style={styles.pagination}>
+              {productImages.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.dot,
+                    activeIndex === index ? styles.activeDot : styles.inactiveDot,
+                  ]}
+                />
+              ))}
             </View>
           )}
           
@@ -309,23 +348,45 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 450,
     backgroundColor: '#FFF',
+    position: 'relative',
   },
   productImage: {
-    width: '100%',
     height: '100%',
   },
   productImageOutOfStock: {
     opacity: 0.5,
   },
   placeholderImage: {
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  pagination: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: 50, // Above the sheet container overlap
+    alignSelf: 'center',
+    zIndex: 5,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 4,
+  },
+  activeDot: {
+    backgroundColor: '#00BCD4',
+    width: 12,
+  },
+  inactiveDot: {
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
   outOfStockOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
+    zIndex: 10,
   },
   outOfStockBadge: {
     flexDirection: 'row',

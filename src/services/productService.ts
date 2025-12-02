@@ -316,8 +316,8 @@ export const productService = {
       });
 
       const response = await ApiService.instance.post<ProductDTO>('/products', multipartData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
+        transformRequest: (data, headers) => {
+          return data;
         },
       });
 
@@ -438,9 +438,9 @@ export const productService = {
       }
 
       const response = await ApiService.instance.put<ProductDTO>(`/products/${id}`, formData, {
-          headers: {
-              'Content-Type': 'multipart/form-data',
-          }
+        transformRequest: (data, headers) => {
+          return data;
+        },
       });
 
       const dto = ensureProductDto(response.data, 'updateProduct');
