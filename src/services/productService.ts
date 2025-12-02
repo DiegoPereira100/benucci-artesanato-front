@@ -337,7 +337,15 @@ export const productService = {
         throw new Error(errorMessage);
       }
 
-      const responseData = await response.json();
+      const responseText = await response.text();
+      let responseData: any = {};
+      try {
+          if (responseText && responseText.trim().length > 0) {
+              responseData = JSON.parse(responseText);
+          }
+      } catch (e) {
+          console.log('productService.createProduct -> response was not JSON, using fallback. Response:', responseText);
+      }
 
       const fallbackDto: ProductDTO = {
         id: NaN,
