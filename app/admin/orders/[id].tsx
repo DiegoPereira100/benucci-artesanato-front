@@ -296,7 +296,8 @@ export default function AdminOrderDetails() {
 					<View style={styles.infoRow}>
 						<Text style={styles.infoLabel}>Método:</Text>
 						<Text style={styles.infoValue}>
-							{order.paymentMethod ?? order.payment?.paymentMethod ?? 'Não informado'}
+							{/* Backend não retorna paymentMethod no DTO, assumindo Mercado Pago como padrão do App */}
+							{order.paymentMethod ?? order.payment?.paymentMethod ?? 'Mercado Pago'}
 						</Text>
 					</View>
 					<View style={styles.divider} />
